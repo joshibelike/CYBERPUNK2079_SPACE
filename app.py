@@ -639,6 +639,13 @@ def new_sheet():
     return render_template('sheet_new.html')
 
 
+def _to_level(value):
+    try:
+        return max(1, min(20, int(value)))
+    except (TypeError, ValueError):
+        return 1
+
+
 @app.route('/sheet/<int:sheet_id>', methods=['GET', 'POST'])
 @login_required
 def sheet_edit(sheet_id):
@@ -660,6 +667,8 @@ def sheet_edit(sheet_id):
             is_public = 1 if new_sheet.pop('is_public', None) else 0
             # фото меняется только через /sheet/<id>/photo; значение из клиента не принимаем
             new_sheet['photo'] = sheet.get('photo', '')
+            # форма присылает уровень строкой ("5"); храним числом, иначе на странице не выбирается нужный пункт
+            new_sheet['level'] = _to_level(new_sheet.get('level'))
             with get_db() as conn:
                 conn.execute(
                     "UPDATE character_sheets SET sheet_data = ?, is_public = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
