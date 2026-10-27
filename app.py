@@ -8,9 +8,26 @@ from werkzeug.utils import secure_filename
 from flask import Flask, flash, redirect, render_template, request, session, url_for
 
 app = Flask(__name__)
-app.secret_key = 'supersecretkey_change_in_production'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.environ.get('CP_DB_PATH', os.path.join(BASE_DIR, 'database.db'))
 
-UPLOAD_FOLDER = 'static/uploads/avatars'
+
+def _load_secret_key():
+    # 1) переменная окружения SECRET_KEY, 2) файл secret.key рядом с app.py (создаётся при первом запуске)
+    env = os.environ.get('SECRET_KEY')
+    if env:
+        return env
+    path = os.path.join(BASE_DIR, 'secret.key')
+    if not os.path.exists(path):
+        with open(path, 'w') as f:
+            f.write(secrets.token_hex(32))
+    with open(path) as f:
+        return f.read().strip()
+
+
+app.secret_key = _load_secret_key()
+
+UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads', 'avatars')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -45,7 +62,7 @@ def remove_sheet_photo(rel_path):
 
 # БД
 def get_db():
-    conn = sqlite3.connect('database.db')
+    conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -748,4 +765,4 @@ def delete_background(bg_id):
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=os.environ.get('FLASK_DEBUG') == '1')

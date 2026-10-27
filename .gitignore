@@ -1,0 +1,12 @@
+secret.key
+__pycache__/
+*.pyc
+venv/
+*.zip
+
+# рабочие данные хостинга (не в git, чтобы git pull не затирал базу)
+database.db
+static/uploads/*
+!static/uploads/avatars/
+static/uploads/avatars/*
+!static/uploads/avatars/default.png
