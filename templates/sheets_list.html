@@ -1,31 +1,37 @@
 {% extends "base.html" %}
+{% block title %}Мои персонажи — CYBERPUNK 2079{% endblock %}
 
 {% block content %}
-<div class="sheet-list-container">
-    <div class="sheet-list-header">
-        <h2>Мои персонажи</h2>
-        <a href="{{ url_for('new_sheet') }}" class="cyber-button sheet-create-btn">+ Создать нового</a>
-    </div>
+<header class="page-head">
+    <div class="eyebrow">Раздел 03</div>
+    <h1>Мои персонажи</h1>
+    <p class="lede">Ваш экипаж: открывайте листы, правьте характеристики — бонусы навыков считаются автоматически.</p>
+    <div class="head-meta" aria-hidden="true"><b>{{ '%02d'|format(sheets|length) }}</b>в команде</div>
+</header>
 
-    {% if sheets %}
-        <div class="sheet-grid">
-            {% for sheet in sheets %}
-                <div class="sheet-card">
-                    <h3 class="sheet-card-title">{{ sheet.name }}</h3>
-                    <p class="sheet-card-info"><strong>Класс:</strong> {{ sheet.class }}</p>
-                    <p class="sheet-card-info"><strong>Уровень:</strong> {{ sheet.level }}</p>
-                    <p class="sheet-card-date"><strong>Обновлён:</strong> {{ sheet.updated }}</p>
-                    <div class="sheet-card-actions">
-                        <a href="{{ url_for('sheet_edit', sheet_id=sheet.id) }}" class="cyber-button sheet-btn-open">Открыть</a>
-                        <form action="{{ url_for('delete_sheet', sheet_id=sheet.id) }}" method="post" onsubmit="return confirm('Удалить персонажа?');" class="sheet-delete-form">
-                            <button type="submit" class="cyber-button sheet-btn-delete">Удалить</button>
-                        </form>
-                    </div>
-                </div>
-            {% endfor %}
+<div class="sheet-grid">
+    {% for sheet in sheets %}
+    <article class="panel sheet-card" data-reveal>
+        <div class="sheet-card-top">
+            <h2 class="sheet-card-title">{{ sheet.name }}</h2>
+            <div class="lvl" title="Уровень"><small>LVL</small><b>{{ sheet.level }}</b></div>
         </div>
-    {% else %}
-        <p class="sheet-empty-msg">У вас пока нет персонажей. Нажмите «Создать нового».</p>
-    {% endif %}
+        <p class="sheet-card-class">{{ sheet.class or 'Класс не выбран' }}</p>
+        <p><span class="badge {{ 'pub' if sheet.is_public }}">{{ 'Публичный' if sheet.is_public else 'Приватный' }}</span></p>
+        <p class="sheet-card-date">Обновлён · {{ sheet.updated }}</p>
+        <div class="sheet-card-actions">
+            <a href="{{ url_for('sheet_edit', sheet_id=sheet.id) }}" class="btn btn--sm">Открыть</a>
+            <form action="{{ url_for('delete_sheet', sheet_id=sheet.id) }}" method="post" onsubmit="return confirm('Удалить персонажа {{ sheet.name }}?');">
+                <button type="submit" class="btn btn--danger btn--sm">Удалить</button>
+            </form>
+        </div>
+    </article>
+    {% endfor %}
+    <a href="{{ url_for('new_sheet') }}" class="sheet-add" data-reveal>
+        <span aria-hidden="true">+</span>Создать нового
+    </a>
 </div>
+{% if not sheets %}
+<p class="hint" style="margin-top:22px">У вас пока нет персонажей — нажмите «Создать нового».</p>
+{% endif %}
 {% endblock %}

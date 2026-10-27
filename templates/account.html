@@ -1,103 +1,117 @@
 {% extends "base.html" %}
+{% block title %}{% if 'user_id' in session %}Аккаунт{% else %}Вход{% endif %} — CYBERPUNK 2079{% endblock %}
 
 {% block content %}
-<div class="profile-card">
-    {% if 'user_id' in session %}
-        <div class="tabs">
-            <a href="#" class="tab-link active" data-tab="profile">Профиль</a>
-            <a href="#" class="tab-link" data-tab="security">Смена пароля</a>
-            <a href="#" class="tab-link" data-tab="avatar">Аватар</a>
-            <a href="{{ url_for('sheets_list') }}" class="tab-link">Листы персонажа</a>
-            {% if is_admin %}
-                <a href="{{ url_for('admin_panel') }}" class="tab-link">Админ-панель</a>
-            {% endif %}
-            <a href="{{ url_for('logout') }}" class="tab-link" style="background: #aa0000;">Выйти</a>
+{% if 'user_id' in session %}
+<header class="page-head">
+    <div class="eyebrow">Личный кабинет</div>
+    <h1>Аккаунт</h1>
+</header>
+<div class="panel profile-layout">
+    <div class="tabs" role="tablist">
+        <a href="#profile" class="tab-link active" role="tab" data-tab="profile">Профиль</a>
+        <a href="#security" class="tab-link" role="tab" data-tab="security">Смена пароля</a>
+        <a href="#avatar" class="tab-link" role="tab" data-tab="avatar">Аватар</a>
+        <a href="{{ url_for('sheets_list') }}" class="tab-link">Листы персонажа</a>
+        {% if is_admin %}<a href="{{ url_for('admin_panel') }}" class="tab-link">Админ-панель</a>{% endif %}
+        <a href="{{ url_for('logout') }}" class="tab-link danger">Выйти</a>
+    </div>
+
+    <div id="profile" class="tab-pane active" role="tabpanel">
+        <div class="profile-head">
+            <img src="{{ url_for('static', filename=user['avatar']) }}" alt="Аватар {{ user['username'] }}" class="avatar">
+            <div>
+                <h2>{{ user['username'] }}</h2>
+                <span class="badge {{ 'admin' if is_admin }}">{% if is_admin %}Администратор{% else %}Игрок{% endif %}</span>
+            </div>
         </div>
-        <div id="profile" class="tab-pane active">
-            <img src="{{ url_for('static', filename=user['avatar']) }}" alt="avatar" class="avatar">
-            <h2>{{ user['username'] }}</h2>
-            <p><strong>Email:</strong> {{ user['email'] }}</p>
-            <p><strong>Статус:</strong> {% if is_admin %}Администратор{% else %}Игрок{% endif %}</p>
-            <p><strong>На сайте с:</strong> {{ user['created_at'] }}</p>
-        </div>
-        <div id="security" class="tab-pane">
-            <form method="post" class="cyber-form">
-                <input type="hidden" name="change_password" value="1">
-                <label>Текущий пароль</label>
-                <input type="password" name="current_password" required>
-                <label>Новый пароль (мин. 4 символа)</label>
-                <input type="password" name="new_password" required>
-                <label>Подтвердите новый пароль</label>
-                <input type="password" name="confirm_password" required>
-                <button type="submit" class="cyber-button">Сменить пароль</button>
-            </form>
-        </div>
-        <div id="avatar" class="tab-pane">
-            <form method="post" enctype="multipart/form-data" class="cyber-form">
-                <input type="hidden" name="change_avatar" value="1">
-                <label>Выберите новую аватарку (PNG, JPG, GIF)</label>
-                <input type="file" name="avatar" accept="image/*" required>
-                <button type="submit" class="cyber-button">Загрузить</button>
-            </form>
-        </div>
-        <script>
-            const tabs = document.querySelectorAll('.tab-link');
-            const panes = document.querySelectorAll('.tab-pane');
-            tabs.forEach(tab => {
-                tab.addEventListener('click', (e) => {
-                    if(tab.getAttribute('href') && tab.getAttribute('href').startsWith('/')) return;
-                    e.preventDefault();
-                    const targetId = tab.getAttribute('data-tab');
-                    panes.forEach(pane => pane.classList.remove('active'));
-                    document.getElementById(targetId).classList.add('active');
-                    tabs.forEach(t => t.classList.remove('active'));
-                    tab.classList.add('active');
-                });
-            });
-        </script>
-    {% else %}
-        <h2>ДОБРО ПОЖАЛОВАТЬ</h2>
-        <div class="tabs">
-            <a href="#" class="tab-link active" data-tab="login-tab">Вход</a>
-            <a href="#" class="tab-link" data-tab="register-tab">Регистрация</a>
-        </div>
-        <div id="login-tab" class="tab-pane active">
-            <form method="post" action="{{ url_for('login') }}" class="cyber-form">
-                <label>Email или имя пользователя</label>
-                <input type="text" name="login_identifier" required>
-                <label>Пароль</label>
-                <input type="password" name="password" required>
-                <button type="submit" class="cyber-button">ВОЙТИ</button>
-            </form>
-        </div>
-        <div id="register-tab" class="tab-pane">
-            <form method="post" action="{{ url_for('register') }}" enctype="multipart/form-data" class="cyber-form">
-                <label>Имя пользователя (уникальное)</label>
-                <input type="text" name="username" required>
-                <label>Email (уникальный)</label>
-                <input type="email" name="email" required>
-                <label>Пароль</label>
-                <input type="password" name="password" required>
-                <label>Подтвердите пароль</label>
-                <input type="password" name="confirm_password" required>
-                <label>Аватар (необязательно)</label>
-                <input type="file" name="avatar" accept="image/*">
-                <button type="submit" class="cyber-button">ЗАРЕГИСТРИРОВАТЬСЯ</button>
-            </form>
-        </div>
-        <script>
-            const guestTabs = document.querySelectorAll('.tabs .tab-link');
-            guestTabs.forEach(tab => {
-                tab.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    const target = tab.getAttribute('data-tab');
-                    document.querySelectorAll('#login-tab, #register-tab').forEach(p => p.classList.remove('active'));
-                    document.getElementById(target).classList.add('active');
-                    guestTabs.forEach(t => t.classList.remove('active'));
-                    tab.classList.add('active');
-                });
-            });
-        </script>
-    {% endif %}
+        <dl class="kv">
+            <div><dt>Email</dt><dd>{{ user['email'] }}</dd></div>
+            <div><dt>На сайте с</dt><dd>{{ user['created_at'] }}</dd></div>
+        </dl>
+    </div>
+
+    <div id="security" class="tab-pane" role="tabpanel">
+        <form method="post" class="cyber-form" style="max-width:460px">
+            <input type="hidden" name="change_password" value="1">
+            <label for="cur">Текущий пароль</label>
+            <input id="cur" type="password" name="current_password" autocomplete="current-password" required>
+            <label for="new">Новый пароль (мин. 4 символа)</label>
+            <input id="new" type="password" name="new_password" autocomplete="new-password" required>
+            <label for="conf">Подтвердите новый пароль</label>
+            <input id="conf" type="password" name="confirm_password" autocomplete="new-password" required>
+            <div class="form-actions"><button type="submit" class="btn">Сменить пароль</button></div>
+        </form>
+    </div>
+
+    <div id="avatar" class="tab-pane" role="tabpanel">
+        <form method="post" enctype="multipart/form-data" class="cyber-form" style="max-width:460px">
+            <input type="hidden" name="change_avatar" value="1">
+            <label for="av">Новая аватарка (PNG, JPG, GIF)</label>
+            <input id="av" type="file" name="avatar" accept="image/*" required>
+            <div class="form-actions"><button type="submit" class="btn">Загрузить</button></div>
+        </form>
+    </div>
 </div>
+{% else %}
+<div class="page-head" style="padding-bottom:28px"><div class="eyebrow">Доступ // Идентификация</div></div>
+<div class="panel auth">
+    <div class="auth-poster" aria-hidden="true">
+        <p>Crew terminal // 72:0-1</p>
+        <h2 class="cyberpunk_text">Добро пожаловать<br>на борт<br>Горизонт-7</h2>
+    </div>
+    <div class="auth-body">
+        <div class="tabs" role="tablist">
+            <a href="#login-tab" class="tab-link active" role="tab" data-tab="login-tab">Вход</a>
+            <a href="#register-tab" class="tab-link" role="tab" data-tab="register-tab">Регистрация</a>
+        </div>
+
+        <div id="login-tab" class="tab-pane active" role="tabpanel">
+            <form method="post" action="{{ url_for('login') }}" class="cyber-form">
+                <label for="li">Email или имя пользователя</label>
+                <input id="li" type="text" name="login_identifier" autocomplete="username" required>
+                <label for="lp">Пароль</label>
+                <input id="lp" type="password" name="password" autocomplete="current-password" required>
+                <div class="form-actions"><button type="submit" class="btn btn--block">Войти</button></div>
+            </form>
+        </div>
+
+        <div id="register-tab" class="tab-pane" role="tabpanel">
+            <form method="post" action="{{ url_for('register') }}" enctype="multipart/form-data" class="cyber-form">
+                <label for="ru">Имя пользователя (уникальное)</label>
+                <input id="ru" type="text" name="username" autocomplete="username" required>
+                <label for="re">Email (уникальный)</label>
+                <input id="re" type="email" name="email" autocomplete="email" required>
+                <label for="rp">Пароль</label>
+                <input id="rp" type="password" name="password" autocomplete="new-password" required>
+                <label for="rc">Подтвердите пароль</label>
+                <input id="rc" type="password" name="confirm_password" autocomplete="new-password" required>
+                <label for="ra">Аватар (необязательно)</label>
+                <input id="ra" type="file" name="avatar" accept="image/*">
+                <div class="form-actions"><button type="submit" class="btn btn--block">Зарегистрироваться</button></div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+    (function () {
+        var tabs = document.querySelectorAll('.tab-link[data-tab]');
+        tabs.forEach(function (tab) {
+            tab.addEventListener('click', function (e) {
+                e.preventDefault();
+                var root = tab.closest('.panel');
+                root.querySelectorAll('.tab-pane').forEach(function (p) { p.classList.remove('active'); });
+                root.querySelectorAll('.tab-link[data-tab]').forEach(function (t) { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
+                document.getElementById(tab.dataset.tab).classList.add('active');
+                tab.classList.add('active');
+                tab.setAttribute('aria-selected', 'true');
+            });
+        });
+        var hash = location.hash.slice(1);
+        var start = hash && document.querySelector('.tab-link[data-tab="' + hash + '"]');
+        if (start) start.click();
+    })();
+</script>
 {% endblock %}

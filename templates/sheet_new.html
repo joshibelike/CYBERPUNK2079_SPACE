@@ -1,12 +1,24 @@
 {% extends "base.html" %}
+{% block title %}Новый персонаж — CYBERPUNK 2079{% endblock %}
 
 {% block content %}
-<div class="profile-card" style="max-width: 500px; margin: 2rem auto;">
-    <h2>Создание нового персонажа</h2>
+<header class="page-head">
+    <div class="eyebrow">Раздел 03 // Новый</div>
+    <h1>Новый персонаж</h1>
+    <p class="lede">Начните с имени — остальное заполните в листе.</p>
+</header>
+<div class="panel form-card narrow">
     <form method="post" class="cyber-form">
-        <label>Имя персонажа</label>
-        <input type="text" name="name" required placeholder="Введите имя">
-        <button type="submit" class="cyber-button">Создать</button>
+        <label for="name">Имя персонажа</label>
+        <input id="name" type="text" name="name" required autofocus placeholder="Например: Анн">
+        <label class="pub-choice" for="is_public">
+            <input id="is_public" type="checkbox" name="is_public" value="1">
+            <span><b>Публичный лист</b><small>Будет виден всем в разделе «Персонажи» — только для просмотра, с вашим именем игрока. Можно изменить позже.</small></span>
+        </label>
+        <div class="form-actions">
+            <button type="submit" class="btn">Создать</button>
+            <a href="{{ url_for('sheets_list') }}" class="btn btn--ghost">Отмена</a>
+        </div>
     </form>
 </div>
 {% endblock %}

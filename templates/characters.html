@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Персонажи — CYBERPUNK 2079{% endblock %}
+
+{% block content %}
+{% from "_cp.html" import fx %}
+<header class="page-head">
+    <div class="eyebrow">Раздел 04</div>
+    <h1>Персонажи</h1>
+    <p class="lede">Личные дела экипажа: публичные листы игроков. Смотреть можно, редактировать чужие листы нельзя.</p>
+    <div class="head-meta" aria-hidden="true"><b>{{ '%02d'|format(characters|length) }}</b>на борту</div>
+</header>
+
+{% if characters %}
+<div class="char-tools">
+    <label class="sr-only" for="charSearch">Поиск по персонажам</label>
+    <input id="charSearch" type="search" placeholder="Поиск: имя, класс, игрок…" autocomplete="off">
+    <span class="hint" id="charCount" aria-live="polite"></span>
+</div>
+{% endif %}
+
+<div class="id-grid" id="charGrid">
+    {% for c in characters %}
+    <a class="id-card shape shape--b char-card" href="{{ url_for('character_view', sheet_id=c.id) }}" data-reveal
+       data-search="{{ (c.name ~ ' ' ~ c.class ~ ' ' ~ c.background ~ ' ' ~ c.owner)|lower }}"
+       aria-label="{{ c.name }}, {{ c.class }}, уровень {{ c.level }}. Игрок {{ c.owner }}. Открыть лист">
+        <div class="shape-in idc">
+            <div class="idc-top">
+                <span class="idc-logo">
+                    <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><path d="M16 0.5 C17.2 9.5 22.5 14.8 31.5 16 C22.5 17.2 17.2 22.5 16 31.5 C14.8 22.5 9.5 17.2 0.5 16 C9.5 14.8 14.8 9.5 16 0.5Z" fill="currentColor"/></svg>
+                    <b>ГОРИЗОНТ-7</b>
+                </span>
+                <span class="idc-line"></span>
+                <svg class="idc-hexes" viewBox="0 0 70 20" width="70" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.2">
+                    <polygon points="9,1 17,5.5 17,14.5 9,19 1,14.5 1,5.5"/><polygon points="35,1 43,5.5 43,14.5 35,19 27,14.5 27,5.5"/><polygon points="61,1 69,5.5 69,14.5 61,19 53,14.5 53,5.5"/>
+                </svg>
+            </div>
+
+            <div class="idc-frame">
+                <div class="id-photo{{ ' has' if c.photo }}">
+                    {% if c.photo %}<img src="{{ url_for('static', filename=c.photo) }}" alt="Фото персонажа {{ c.name }}" loading="lazy">{% else %}<span class="idc-initial" aria-hidden="true">{{ c.name[:1]|upper }}</span>{% endif %}
+                    {{ fx('ID MATCHED') }}
+                </div>
+
+                <div class="idc-info">
+                    <h2 class="idc-name">{{ c.name }}</h2>
+                    <span class="idc-class">{{ c.class }}</span>
+                    <small class="idc-code">LVL {{ '%02d'|format(c.level|int) }}{% if c.background %} · {{ c.background }}{% endif %}</small>
+                    <p class="idc-bar"><span>ИГРОК</span><b>{{ c.owner }}</b></p>
+                    <p class="idc-bar"><span>ОБНОВЛЁН</span><b>{{ c.updated[:10] }}</b></p>
+
+                    <div class="idc-bottom">
+                        <svg class="hexring" viewBox="-70 -68 140 136" role="img" aria-label="Характеристики: {% for h in c.hexes.cells %}{{ h.label }} {{ h.value }}{% if not loop.last %}, {% endif %}{% endfor %}">
+                            {% for h in c.hexes.cells %}
+                            <g class="hx">
+                                <polygon points="{{ h.points }}" fill="#eaf1ff" fill-opacity="{{ h.alpha }}" stroke="#eaf1ff" stroke-opacity=".85" stroke-width="1"/>
+                                <text x="{{ h.x }}" y="{{ h.y + 3 }}" text-anchor="middle" class="hx-v {{ 'dk' if h.light }}">{{ h.value }}</text>
+                                <text x="{{ h.x }}" y="{{ h.y + 13 }}" text-anchor="middle" class="hx-l {{ 'dk' if h.light }}">{{ h.label }}</text>
+                            </g>
+                            {% endfor %}
+                            <polygon points="{{ c.hexes.center.points }}" fill="none" stroke="#7db0ff" stroke-width="1.2" stroke-dasharray="3 2"/>
+                            <text x="0" y="-1.5" text-anchor="middle" class="hx-l ctr">LVL</text>
+                            <text x="0" y="9" text-anchor="middle" class="hx-v ctr">{{ c.level }}</text>
+                        </svg>
+                        <div class="idc-digits">
+                            <span><b>{{ c.ac }}</b><small>КЗ</small></span>
+                            <span><b>{{ c.hp }}</b><small>ХП</small></span>
+                            <span><b>{{ c.speed }}</b><small>СКР</small></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="idc-foot">
+                <span class="idc-wing"></span>
+                <span class="idc-foot-mid"><b>ГОРИЗОНТ-7 · PERSONNEL</b><i class="idc-ruler"></i></span>
+                <span class="idc-wing"></span>
+                <span class="idc-open">Открыть →</span>
+            </div>
+        </div>
+    </a>
+    {% else %}
+    <div class="panel empty"><b>Пока никого</b>Публичных листов ещё нет. Сделайте свой лист публичным при создании — и он появится здесь.</div>
+    {% endfor %}
+</div>
+<p class="empty" id="charNone" hidden>Ничего не найдено.</p>
+
+<script>
+    (function () {
+        var q = document.getElementById('charSearch'); if (!q) return;
+        var cards = [].slice.call(document.querySelectorAll('.char-card')), cnt = document.getElementById('charCount'), none = document.getElementById('charNone');
+        function run() {
+            var v = q.value.trim().toLowerCase(), n = 0;
+            cards.forEach(function (c) { var ok = !v || c.dataset.search.indexOf(v) > -1; c.hidden = !ok; if (ok) n++; });
+            cnt.textContent = v ? 'Найдено: ' + n : '';
+            none.hidden = n > 0;
+        }
+        q.addEventListener('input', run);
+    })();
+</script>
+{% endblock %}

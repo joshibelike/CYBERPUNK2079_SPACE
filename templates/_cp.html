@@ -1,0 +1,9 @@
+{# Киберпанк-слой для фото: тон, полутон, зерно, сканер, рамка «ID MATCHED», время. Показывается только при .has #}
+{% macro fx(tag='ID MATCHED') %}
+<span class="cp-fx" aria-hidden="true">
+    <i class="cp-tone"></i><i class="cp-dots"></i><i class="cp-grain"></i><i class="cp-scan"></i>
+    <i class="cp-frame"><b>{{ tag }}</b></i>
+    <i class="cp-corner tl"></i><i class="cp-corner tr"></i><i class="cp-corner bl"></i><i class="cp-corner br"></i>
+    <time class="cp-time" data-clock></time>
+</span>
+{% endmacro %}

@@ -1,42 +1,109 @@
 {% extends "base.html" %}
+{% block title %}CYBERPUNK 2079 — SPACE{% endblock %}
 
 {% block content %}
-<div class="boxes">
-    <div class="boxes-left">
-        <div class="box">
-            <div class="boxcontent">
-                <h2>Cyberpunk 2077</h2>
-                <p>— это масштабная компьютерная ролевая игра в жанре научной фантастики, 
-                    разработанная польской студией CD Projekt Red. Действие разворачивается в мрачном и гиперкапиталистическом 
-                    будущем локации Найт-Сити, где высокие технологии 
-                    (кибернетические импланты, лазерное оружие, искусственный интеллект) соседствуют с 
-                    тотальным социальным неравенством, преступностью и коррупцией. 
-                </p>
-            </div>
-        </div>
-        <div class="box">
-            <div class="boxcontent">
-                <h2>D&D</h2>
-                <p>— это настольная ролевая игра в жанре фэнтези.
-                    В отличие от компьютерных игр весь мир существует в воображении игроков и устных описаниях одного из участников — 
-                    Мастера (ДМа). Остальные игроки создают своих персонажей и вместе они отправляются в приключения.
-                    Успех действий определяется не видеопикселями, а броском многогранных кубиков (d20, d6, d12 и др.).
-                </p>
-            </div>
-        </div>
-    </div>
+<section class="hero" aria-labelledby="hero-title">
+    <div class="hero-orb"></div>
+    <div class="hero-beam"></div>
+    <div class="hero-horizon"></div>
+    <div class="hero-floor"></div>
+    <div class="hero-fade"></div>
 
-    <div class="bigger_box">
-        <div class="boxcontent">
-            <h2>Почему SPACE? Почему 2079?</h2>
-            <p>
-                Данная "версия" D&D — "Homebrew" (т.е. придуманная игроками), связанный с Cyberpunk и космосом. Действия ролёвки
-                происходят в 2079, на космическом корабле, на который отправили нескольких работников во главе с Анн. Игрокам предстоит выполнять
-                как повседневные задачи, так и узнать персонажей друг-друга и разобраться с куда более крупным конфликтом.. <br><br>
-                Авторами этого Homebrew являются мои хорошие друзья <strong>Бушес и Зоя</strong>. Все представленные на сайте классы, предыстории, лор,
-                лист персонажа и прочие аспекты самой игры — их интеллектуальная собственность. Сайт создан для простоты ознакомления.
-            </p>
+    <div class="hud-corner tl" aria-hidden="true">Freedom<br>Imagine</div>
+    <div class="hud-corner tr" aria-hidden="true">05/01 — 04<br>Space station</div>
+    <div class="hud-corner bl" aria-hidden="true">D&amp;D homebrew<br>v. 2079</div>
+    <div class="hud-corner br" aria-hidden="true">Signal: stable<br>Crew: online</div>
+
+    <div class="hero-inner">
+        <div class="hero-date" aria-hidden="true">
+            <b data-count="20">20</b><b data-count="79">79</b>
+            <small>ГОД // БОРТ</small>
+        </div>
+
+        <div class="hero-title">
+            <div class="eyebrow">Настольная ролевая игра</div>
+            <h1 id="hero-title" class="cyberpunk_text">Cyberpunk<br>2079</h1>
+            <span class="space-tag">Space</span>
+            <p>Homebrew по D&amp;D на космическом корабле — классы, предыстории и лист персонажа в одном месте.</p>
+            <div class="hero-cta">
+                <a class="btn" href="{{ url_for('sheets_list') }}">Создать персонажа</a>
+                <a class="btn btn--ghost" href="#lore">Что это такое</a>
+            </div>
+        </div>
+
+        <div class="hero-side" aria-hidden="true">
+            <svg class="globe" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="1">
+                <circle cx="50" cy="50" r="46"/>
+                <ellipse cx="50" cy="50" rx="46" ry="14"/>
+                <ellipse cx="50" cy="50" rx="46" ry="30"/>
+                <ellipse cx="50" cy="50" rx="14" ry="46"/>
+                <ellipse cx="50" cy="50" rx="30" ry="46"/>
+                <path d="M50 4v92M4 50h92"/>
+            </svg>
+            <div class="readout">
+                <b>VERTA35</b> — parabolic curve<br>
+                orbit sync <b>72:0-1</b>
+                <span class="bar"></span>
+                crew manifest <b>loaded</b>
+            </div>
         </div>
     </div>
+    <a class="scroll-cue" href="#lore" aria-label="Прокрутить к лору">SCROLL</a>
+</section>
+
+<div class="section">
+    <section class="lore" id="lore" aria-labelledby="lore-title">
+        <div class="section-head">
+            <div>
+                <div class="eyebrow">Лор // 01</div>
+                <h2 id="lore-title">С чего начать</h2>
+            </div>
+            <span class="num" aria-hidden="true">01</span>
+        </div>
+
+        <div class="lore-grid">
+            <article class="panel lore-card" data-reveal>
+                <span class="idx">A/01</span>
+                <h3>Cyberpunk 2077</h3>
+                <p>— это масштабная компьютерная ролевая игра в жанре научной фантастики,
+                    разработанная польской студией CD Projekt Red. Действие разворачивается в мрачном и гиперкапиталистическом
+                    будущем локации Найт-Сити, где высокие технологии
+                    (кибернетические импланты, лазерное оружие, искусственный интеллект) соседствуют с
+                    тотальным социальным неравенством, преступностью и коррупцией.</p>
+            </article>
+            <article class="panel lore-card" data-reveal>
+                <span class="idx">A/02</span>
+                <h3>D&amp;D</h3>
+                <p>— это настольная ролевая игра в жанре фэнтези.
+                    В отличие от компьютерных игр весь мир существует в воображении игроков и устных описаниях одного из участников —
+                    Мастера (ДМа). Остальные игроки создают своих персонажей и вместе они отправляются в приключения.
+                    Успех действий определяется не видеопикселями, а броском многогранных кубиков (d20, d6, d12 и др.).</p>
+            </article>
+            <article class="panel lore-card feature wide" data-reveal>
+                <span class="idx">A/03</span>
+                <h3>Почему SPACE? Почему 2079?</h3>
+                <p>Данная "версия" D&amp;D — "Homebrew" (т.е. придуманная игроками), связанный с Cyberpunk и космосом. Действия ролёвки
+                    происходят в 2079, на космическом корабле, на который отправили нескольких работников во главе с Анн. Игрокам предстоит выполнять
+                    как повседневные задачи, так и узнать персонажей друг-друга и разобраться с куда более крупным конфликтом..</p>
+                <p>Авторами этого Homebrew являются мои хорошие друзья <strong>Бушес и Зоя</strong>. Все представленные на сайте классы, предыстории, лор,
+                    лист персонажа и прочие аспекты самой игры — их интеллектуальная собственность. Сайт создан для простоты ознакомления.</p>
+            </article>
+        </div>
+
+        <nav class="gates" aria-label="Разделы сайта">
+            <a class="panel gate" href="{{ url_for('show_classes') }}" data-reveal>
+                <div><span class="gate-num" aria-hidden="true">01</span><h3>Классы</h3><p>Кости хитов, владения и особенности каждого класса.</p></div>
+                <span class="go">Открыть</span>
+            </a>
+            <a class="panel gate" href="{{ url_for('show_backgrounds') }}" data-reveal>
+                <div><span class="gate-num" aria-hidden="true">02</span><h3>Предыстории</h3><p>Откуда пришёл персонаж: навыки, снаряжение, выбор клана.</p></div>
+                <span class="go">Открыть</span>
+            </a>
+            <a class="panel gate" href="{{ url_for('sheets_list') }}" data-reveal>
+                <div><span class="gate-num" aria-hidden="true">03</span><h3>Лист персонажа</h3><p>Создайте и храните своих героев — бонусы считаются сами.</p></div>
+                <span class="go">Открыть</span>
+            </a>
+        </nav>
+    </section>
 </div>
 {% endblock %}

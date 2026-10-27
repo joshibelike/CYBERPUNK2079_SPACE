@@ -1,167 +1,206 @@
 {% extends "base.html" %}
+{% block title %}{{ sheet.name }} — Лист персонажа{% endblock %}
 
 {% block content %}
-<div class="profile-card" style="max-width: 1000px; width: 95%;">
-    <form id="sheetForm">
-        <div style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: center;">
-            <div style="flex:1; min-width:150px">
-                <label>Ф.И.О:</label>
-                <input type="text" class="cyber-input-wide" name="name" value="{{ sheet.name }}" style="background:black; color:yellow; font-weight:bold;">
-            </div>
-            <div style="flex:1; min-width:150px">
-                <label>Класс:</label>
-                <input type="text" class="cyber-input-wide" name="class" value="{{ sheet.class }}">
-            </div>
-            <div style="flex:1; min-width:150px">
-                <label>Уровень:</label>
-                <select name="level" class="cyber-input-wide">
-                    {% for i in range(1,21) %}
-                    <option value="{{ i }}" {% if sheet.level == i %}selected{% endif %}>{{ i }}</option>
-                    {% endfor %}
+{% from "_cp.html" import fx %}
+{% set ro = readonly|default(false) %}
+{% set stat_defs = [('strength','СИЛА'),('system','Т.СИСТЕМА'),('dexterity','ЛОВКОСТЬ'),('wisdom','МУДРОСТЬ'),('charisma','ХАРИЗМА'),('intelligence','ИНТЕЛЛЕКТ')] %}
+{% set skill_cols = [
+    [('Эго','Х'),('Присутствие','Х'),('Соц. рейтинг','Х'),('Проворство','Л'),('Реакция','Л'),('Скрытность','Л')],
+    [('Внимательность','М'),('Хладнокровие','М'),('Техника','И'),('Медицина','И'),('Устойчивость(имп)','Т'),('Устойчивость(скр)','Т')],
+    [('Наука','М'),('Огнестрел. оружие','С'),('Холодное оружие','С')]
+] %}
+{% set skill_idx = {} %}
+{% for s in sheet.skills %}{% if skill_idx.update({s.name: loop.index0}) %}{% endif %}{% endfor %}
+
+<form id="sheetForm" class="sheet-form" autocomplete="off" onsubmit="return false">
+{% if ro %}
+    <div class="ro-banner panel">
+        <img src="{{ url_for('static', filename=owner.avatar) }}" alt="" class="owner-ava" width="44" height="44">
+        <div><small class="mono">Лист игрока</small><b>{{ owner.username }}</b></div>
+        <span class="badge">Только просмотр</span>
+        <a class="btn btn--ghost btn--sm" href="{{ url_for('characters_list') }}">← Все персонажи</a>
+    </div>
+    <fieldset class="sh-fs" disabled>
+{% endif %}
+
+    <!-- ===== Страница 1: лист ===== -->
+    <header class="sh-head">
+        <div class="sh-id shape shape--b"><div class="shape-in">
+            <div><label class="lbl" for="f_name">Ф.И.О.</label><input id="f_name" type="text" class="sh-name" name="name" value="{{ sheet.name }}"></div>
+            <div><label class="lbl" for="f_class">Класс</label><input id="f_class" type="text" name="class" value="{{ sheet.class }}"></div>
+        </div></div>
+        <div class="sh-id2 shape shape--a"><div class="shape-in">
+            <div><label class="lbl" for="f_bg">Предыстория</label><input id="f_bg" type="text" name="background" value="{{ sheet.background }}"></div>
+            <div class="sh-level">
+                <label class="lbl" for="f_level">Уровень</label>
+                <select id="f_level" name="level">
+                    {% for i in range(1,21) %}<option value="{{ i }}" {% if sheet.level == i %}selected{% endif %}>{{ i }}</option>{% endfor %}
                 </select>
             </div>
-            <div style="flex:1; min-width:150px">
-                <label>Предыстория:</label>
-                <input type="text" class="cyber-input-wide" name="background" value="{{ sheet.background }}">
+        </div></div>
+    </header>
+
+    <div class="sh-grid">
+        <!-- характеристики -->
+        <section class="sh-stats shape shape--b" aria-label="Характеристики"><div class="shape-in">
+            {% for key, label in stat_defs %}
+            <div class="stat-box">
+                <output class="stat-mod" id="mod_{{ key }}" for="stat_{{ key }}">0</output>
+                <input id="stat_{{ key }}" type="number" class="stat-value" data-stat="{{ key }}" min="1" max="30" value="{{ sheet.stats[key] }}" aria-label="{{ label }}: значение">
+                <label class="stat-name" for="stat_{{ key }}">[{{ label }}]</label>
             </div>
-        </div>
+            {% endfor %}
+        </div></section>
 
-        <div class="sheet-edit-grid" style="display: grid; grid-template-columns: 250px 1fr 1fr; gap: 1.5rem; margin-top: 2rem;">
-            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                <div style="border: 2px solid black; padding: 0.5rem; background: rgba(255,255,0,0.05);">
-                    <div style="font-weight:bold; text-align:center;">ХАРАКТЕРИСТИКИ</div>
+        <!-- пассивные, спасброски, инициатива -->
+        <div class="sh-mid">
+            <section class="shape shape--a" aria-label="Пассивные навыки"><div class="shape-in sh-passive">
+                <ul>
+                    <li><span>ВНИМ.</span><b id="pas_att">10</b></li>
+                    <li><span>УСТОЙЧ.ИМП.</span><b id="pas_imp">10</b></li>
+                    <li><span>УСТОЙЧ.СКР.</span><b id="pas_scr">10</b></li>
+                </ul>
+                <h2 class="sh-cap">Пассив. навыки</h2>
+                <input type="hidden" name="passive_skills" id="passive_skills" value="{{ sheet.passive_skills }}">
+            </div></section>
 
-                    <div class="stat-row">
-                        <div class="stat-box">
-                            <input type="number" class="stat-mod" id="mod_strength" readonly>
-                            <input type="number" class="stat-value" data-stat="strength" min="1" max="30" value="{{ sheet.stats.strength }}">
-                            <label>[СИЛА]</label>
-                        </div>
-                    </div>
-
-                    <div class="stat-row">
-                        <div class="stat-box">
-                            <input type="number" class="stat-mod" id="mod_system" readonly>
-                            <input type="number" class="stat-value" data-stat="system" min="1" max="30" value="{{ sheet.stats.system }}">
-                            <label>[СИСТЕМА]</label>
-                        </div>
-                    </div>
-
-                    <div class="stat-row">
-                        <div class="stat-box">
-                            <input type="number" class="stat-mod" id="mod_dexterity" readonly>
-                            <input type="number" class="stat-value" data-stat="dexterity" min="1" max="30" value="{{ sheet.stats.dexterity }}">
-                            <label>[ЛОВКОСТЬ]</label>
-                        </div>
-                    </div>
-
-                    <div class="stat-row">
-                        <div class="stat-box">
-                            <input type="number" class="stat-mod" id="mod_wisdom" readonly>
-                            <input type="number" class="stat-value" data-stat="wisdom" min="1" max="30" value="{{ sheet.stats.wisdom }}">
-                            <label>[МУДРОСТЬ]</label>
-                        </div>
-                    </div>
-
-                    <div class="stat-row">
-                        <div class="stat-box">
-                            <input type="number" class="stat-mod" id="mod_charisma" readonly>
-                            <input type="number" class="stat-value" data-stat="charisma" min="1" max="30" value="{{ sheet.stats.charisma }}">
-                            <label>[ХАРИЗМА]</label>
-                        </div>
-                    </div>
-
-                    <div class="stat-row">
-                        <div class="stat-box">
-                            <input type="number" class="stat-mod" id="mod_intelligence" readonly>
-                            <input type="number" class="stat-value" data-stat="intelligence" min="1" max="30" value="{{ sheet.stats.intelligence }}">
-                            <label>[ИНТЕЛЛЕКТ]</label>
-                        </div>
-                    </div>
-                </div>
-
-                <div style="border: 2px solid black; padding: 0.5rem; background: rgba(255,255,0,0.05); margin-top:0.5rem;">
-                    <div style="font-weight:bold; text-align:center; font-size:0.9rem;">СПАСБРОСКИ</div>
-                    {% for save in ['Сила', 'Система', 'Ловкость', 'Мудрость', 'Харизма', 'Интеллект'] %}
-                    <div style="display:flex; gap:0.5rem; align-items:center; font-size:0.9rem;">
-                        <input type="checkbox" name="save_prof_{{ loop.index }}" {% if 'save_prof_' + loop.index|string in saves %}checked{% endif %}>
-                        <span>{{ save }}</span>
-                    </div>
-                    {% endfor %}
-                </div>
-
-                <div style="border: 2px solid black; padding: 0.5rem; text-align:center;">
-                    <label>ИНИЦИАТИВА</label>
-                    <input type="number" name="initiative" value="{{ sheet.initiative }}" class="cyber-input-wide" style="width:50px; text-align:center; margin:0 auto;">
-                </div>
-            </div>
-
-            <div style="display: flex; flex-direction: column; gap: 1rem;">
-                <div style="border:2px solid black; padding:0.5rem;">
-                    <label>ПАССИВ. НАВЫКИ</label>
-                    <input type="text" name="passive_skills" value="{{ sheet.passive_skills }}" class="cyber-input-wide" style="width:80%;">
-                </div>
-                <div style="border:2px solid black; padding:0.5rem; height:180px; display:flex; flex-direction:column;">
-                    <label>ФОТОГРАФИЯ</label>
-                    <div style="flex:1; border:2px dashed black; display:flex; align-items:center; justify-content:center; background:#ff0;">
-                        <span style="color:black; opacity:0.5;">[Фото]</span>
-                    </div>
-                </div>
-                <div style="border:2px solid black; padding:0.5rem; flex:1;">
-                    <label>ЯЗЫКИ И ДРУГОЕ</label>
-                    <textarea name="languages" rows="4" class="cyber-input-wide" style="width:100%;">{{ sheet.languages }}</textarea>
-                </div>
-            </div>
-
-            <div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap:0.5rem; margin-bottom:1rem;">
-                    <div><label>Скорость</label><input type="number" name="speed" value="{{ sheet.speed }}" class="cyber-input-wide"></div>
-                    <div><label>Класс защиты</label><input type="number" name="armor_class" value="{{ sheet.armor_class }}" class="cyber-input-wide"></div>
-                    <div style="grid-column: span 2;"><label>Мировоззрение</label><input type="text" name="alignment" value="{{ sheet.alignment }}" class="cyber-input-wide"></div>
-                </div>
-                <div style="border:2px solid black; padding:0.5rem; margin-bottom:0.5rem;">
-                    <div><label>Хиты:</label><input type="number" name="hp_max" value="{{ sheet.hp_max }}" class="cyber-input-wide"></div>
-                    <div><label>Текущие хиты:</label><input type="number" name="hp_current" value="{{ sheet.hp_current }}" class="cyber-input-wide"></div>
-                    <div><label>Кость хитов:</label><input type="text" name="hit_dice" value="{{ sheet.hit_dice }}" class="cyber-input-wide"></div>
-                </div>
-                <div style="border:2px solid black; padding:0.5rem; height:200px; display:flex; flex-direction:column;">
-                    <label>ЧЕРТЫ</label>
-                    <textarea name="features" rows="5" class="cyber-input-wide" style="width:100%; flex:1;">{{ sheet.features }}</textarea>
-                </div>
-            </div>
-        </div>
-
-        <div style="border:2px solid black; padding:1rem; margin-top:1.5rem;">
-            <div style="font-weight:bold; text-align:center; margin-bottom:0.5rem;">НАВЫКИ</div>
-            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:0.5rem;">
-                {% for skill in sheet.skills %}
-                <div style="display:flex; align-items:center; gap:0.3rem; border-bottom:1px solid rgba(0,0,0,0.1);">
-                    <input type="checkbox" class="skill-prof" data-skill="{{ loop.index0 }}" {% if skill.proficient %}checked{% endif %}>
-                    <input type="checkbox" class="skill-expert" data-skill="{{ loop.index0 }}" {% if skill.expertise %}checked{% endif %}>
-                    <span style="flex:1; font-size:0.9rem;">{{ skill.name }}</span>
-                    <input type="text" class="skill-bonus" style="width:35px; text-align:center; font-weight:bold; border:none; background:transparent;" readonly value="0">
+            <section class="shape shape--b" aria-labelledby="h-saves"><div class="shape-in">
+                <h2 class="sh-cap" id="h-saves">Спасброски</h2>
+                {% for save in ['Сила', 'Система', 'Ловкость', 'Мудрость', 'Харизма', 'Интеллект'] %}
+                <div class="save-row">
+                    <input type="checkbox" class="dot" id="save_{{ loop.index }}" name="save_prof_{{ loop.index }}" {% if sheet['save_prof_' ~ loop.index] %}checked{% endif %}>
+                    <label for="save_{{ loop.index }}">{{ save }}</label>
                 </div>
                 {% endfor %}
-            </div>
+            </div></section>
+
+            <section class="shape shape--b" aria-label="Инициатива"><div class="shape-in sh-init">
+                <input id="f_init" type="number" name="initiative" value="{{ sheet.initiative }}" aria-labelledby="l_init">
+                <label class="lbl" id="l_init" for="f_init">Инициатива</label>
+            </div></section>
         </div>
 
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-top:1rem;">
-            <div style="border:2px solid black; padding:0.5rem;">
-                <label>Снаряжение</label>
-                <textarea name="equipment" rows="3" class="cyber-input-wide" style="width:100%;">{{ sheet.equipment }}</textarea>
-            </div>
-            <div style="border:2px solid black; padding:0.5rem;">
-                <label>Заметки</label>
-                <textarea name="notes" rows="3" class="cyber-input-wide" style="width:100%;">{{ sheet.notes }}</textarea>
-            </div>
-        </div>
+        <!-- основная область -->
+        <div class="sh-main">
+            <section class="shape shape--b sh-top" aria-label="Скорость, защита, мировоззрение"><div class="shape-in">
+                <div class="sh-num"><input id="f_speed" type="number" name="speed" value="{{ sheet.speed }}"><label class="lbl" for="f_speed">Скорость</label></div>
+                <div class="sh-num"><input id="f_ac" type="number" name="armor_class" value="{{ sheet.armor_class }}"><label class="lbl" for="f_ac">Класс защиты</label></div>
+                <div class="sh-num sh-wide"><input id="f_align" type="text" name="alignment" value="{{ sheet.alignment }}"><label class="lbl" for="f_align">Мировоззрение</label></div>
+            </div></section>
 
-        <div style="display:flex; justify-content: flex-end; gap:1rem; margin-top:2rem;">
-            <a href="{{ url_for('sheets_list') }}" class="cyber-button" style="width: auto; background:#333;">← Назад</a>
-            <button type="button" id="saveSheet" class="cyber-button" style="width: auto;">Сохранить</button>
+            <div class="sh-hp">
+                <div class="sh-bar shape shape--a"><div class="shape-in"><label class="lbl" for="f_hpm">Хиты:</label><input id="f_hpm" type="number" name="hp_max" value="{{ sheet.hp_max }}"></div></div>
+                <div class="sh-bar shape shape--a"><div class="shape-in"><label class="lbl" for="f_hd">Кость хитов:</label><input id="f_hd" type="text" name="hit_dice" value="{{ sheet.hit_dice }}"></div></div>
+                <div class="sh-bar shape shape--a"><div class="shape-in"><label class="lbl" for="f_hpc">Текущие хиты:</label><input id="f_hpc" type="number" name="hp_current" value="{{ sheet.hp_current }}"></div></div>
+                <div class="sh-bar sh-deathbar shape shape--a"><div class="shape-in sh-death" role="group" aria-labelledby="l_death">
+                    <span class="lbl" id="l_death">Спасброски от смерти</span>
+                    <span class="sh-tick"><em>Успех</em>
+                        {% for i in range(1,4) %}<input type="checkbox" class="dot ok" name="death_ok_{{ i }}" aria-label="Успех {{ i }}" {% if sheet['death_ok_' ~ i] %}checked{% endif %}>{% endfor %}
+                    </span>
+                    <span class="sh-tick"><em>Провал</em>
+                        {% for i in range(1,4) %}<input type="checkbox" class="dot bad" name="death_bad_{{ i }}" aria-label="Провал {{ i }}" {% if sheet['death_bad_' ~ i] %}checked{% endif %}>{% endfor %}
+                    </span>
+                </div></div>
+                <div class="hp-bar" id="hpBar" role="img" aria-label="Шкала хитов"><i></i></div>
+            </div>
+
+            <div class="sh-lower">
+                <div class="sh-left">
+                    <section class="shape shape--a sh-photo"><div class="shape-in">
+                        <div class="photo{{ ' has' if sheet.photo }}" id="photoBox"{% if not ro %} tabindex="0" role="button" aria-label="Загрузить фото персонажа"{% endif %}>
+                            <img id="photoImg" alt="Фото персонажа {{ sheet.name }}"{% if sheet.photo %} src="{{ url_for('static', filename=sheet.photo) }}"{% else %} hidden{% endif %}>
+                            <span class="photo-empty">[ фото ]</span>
+                            {{ fx('ID MATCHED') }}
+                            {% if not ro %}<span class="photo-hint">Перетащите изображение<br>или нажмите</span>{% endif %}
+                            <span class="photo-busy" aria-hidden="true"></span>
+                        </div>
+                        <div class="photo-bar">
+                            <h2 class="sh-cap">Фотография</h2>
+                            {% if not ro %}
+                            <span class="photo-actions">
+                                <button type="button" class="btn btn--sm btn--ghost" id="photoPick">{{ 'Заменить' if sheet.photo else 'Загрузить' }}</button>
+                                <button type="button" class="btn btn--sm btn--danger" id="photoDel"{% if not sheet.photo %} hidden{% endif %}>Удалить</button>
+                            </span>
+                            <input type="file" id="photoFile" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
+                            {% endif %}
+                        </div>
+                    </div></section>
+                    <section class="shape shape--b"><div class="shape-in sh-fill">
+                        <label class="sh-cap" for="f_lang">Языки и другое:</label>
+                        <textarea id="f_lang" name="languages">{{ sheet.languages }}</textarea>
+                    </div></section>
+                </div>
+                <section class="shape shape--a sh-feat"><div class="shape-in sh-fill">
+                    <label class="sh-cap" for="f_feat">Черты</label>
+                    <textarea id="f_feat" name="features">{{ sheet.features }}</textarea>
+                </div></section>
+            </div>
         </div>
-    </form>
-</div>
+    </div>
+
+    <!-- навыки -->
+    <section class="shape shape--a" aria-labelledby="h-skills"><div class="shape-in">
+        <div class="sh-skhead"><h2 class="sh-cap" id="h-skills">Навыки</h2>
+            <span class="skills-legend" aria-hidden="true">● владение &nbsp; ◆ экспертиза &nbsp; (буква — характеристика)</span></div>
+        <div class="skills-grid">
+            {% for col in skill_cols %}
+            <div class="skills-col">
+                {% for name, letter in col %}{% if name in skill_idx %}{% set skill = sheet.skills[skill_idx[name]] %}
+                <div class="skill-row" data-letter="{{ letter }}">
+                    <span class="sk-letter" aria-hidden="true">({{ letter }})</span>
+                    <input type="checkbox" class="skill-prof dot" data-skill="{{ skill_idx[name] }}" aria-label="Владение: {{ skill.name }}" {% if skill.proficient %}checked{% endif %}>
+                    <span class="sk-name">{{ skill.name }}</span>
+                    <input type="checkbox" class="skill-expert exp" data-skill="{{ skill_idx[name] }}" aria-label="Экспертиза: {{ skill.name }}" title="Экспертиза" {% if skill.expertise %}checked{% endif %}>
+                    <input type="text" class="skill-bonus" readonly value="+0" aria-label="Бонус: {{ skill.name }}" tabindex="-1">
+                </div>
+                {% endif %}{% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+    </div></section>
+
+    <div class="sheet-bottom">
+        <section class="shape shape--b"><div class="shape-in sh-fill"><label class="sh-cap" for="f_eq">Снаряжение</label><textarea id="f_eq" name="equipment">{{ sheet.equipment }}</textarea></div></section>
+        <section class="shape shape--a"><div class="shape-in sh-fill"><label class="sh-cap" for="f_notes">Заметки</label><textarea id="f_notes" name="notes">{{ sheet.notes }}</textarea></div></section>
+    </div>
+
+    <!-- ===== Страница 2: киберимпланты ===== -->
+    <section class="sh-cyber" aria-labelledby="h-cyber">
+        <div class="sh-cyber-head shape shape--a"><div class="shape-in">
+            <h2 id="h-cyber" class="cyberpunk_text">Киберимпланты</h2>
+            <p class="mono">Кол-во: <b id="implantCount">0</b></p>
+        </div></div>
+
+        <div class="sh-cyber-body">
+            <div class="imp imp-head shape shape--b"><div class="shape-in sh-fill"><label class="sh-cap" for="i_head">Голова</label><textarea id="i_head" name="implants_head" rows="4">{{ sheet.implants_head }}</textarea></div></div>
+            <div class="imp imp-arms shape shape--a"><div class="shape-in sh-fill"><label class="sh-cap" for="i_arms">Руки</label><textarea id="i_arms" name="implants_arms" rows="4">{{ sheet.implants_arms }}</textarea></div></div>
+            <div class="imp imp-body shape shape--b"><div class="shape-in sh-fill"><label class="sh-cap" for="i_body">Тело и кожа</label><textarea id="i_body" name="implants_body" rows="4">{{ sheet.implants_body }}</textarea></div></div>
+            <div class="imp imp-legs shape shape--a"><div class="shape-in sh-fill"><label class="sh-cap" for="i_legs">Ноги</label><textarea id="i_legs" name="implants_legs" rows="4">{{ sheet.implants_legs }}</textarea></div></div>
+
+            <canvas id="skeleton" class="skeleton" aria-hidden="true"></canvas>
+        </div>
+    </section>
+
+{% if ro %}
+    </fieldset>
+    <div class="savebar"><div class="savebar-inner">
+        <span class="save-state ro">Только просмотр · лист игрока {{ owner.username }}</span>
+        <a href="{{ url_for('characters_list') }}" class="btn btn--ghost">← Назад</a>
+    </div></div>
+{% else %}
+    <div class="savebar">
+        <div class="savebar-inner">
+            <span class="save-state" id="saveState">Всё сохранено</span>
+            <label class="pub-toggle" for="f_public" title="Публичные листы видны всем в разделе «Персонажи» — только для просмотра">
+                <input id="f_public" type="checkbox" name="is_public" {% if is_public %}checked{% endif %}> Публичный лист
+            </label>
+            <a href="{{ url_for('sheets_list') }}" class="btn btn--ghost">← Назад</a>
+            <button type="button" id="saveSheet" class="btn">Сохранить</button>
+        </div>
+    </div>
+{% endif %}
+</form>
 
 <script>
     const modTable = {
@@ -170,123 +209,106 @@
         '19': 4, '20': 5, '21': 5, '22': 6, '23': 6, '24': 7, '25': 7, '26': 8, '27': 8,
         '28': 9, '29': 9, '30': 10
     };
+    // Х — харизма, Л — ловкость, М — мудрость, И — интеллект, Т — Т.система, С — сила (как на бланке)
+    const skillStat = {
+        'Эго': 'charisma', 'Присутствие': 'charisma', 'Соц. рейтинг': 'charisma',
+        'Проворство': 'dexterity', 'Реакция': 'dexterity', 'Скрытность': 'dexterity',
+        'Внимательность': 'wisdom', 'Хладнокровие': 'wisdom', 'Наука': 'wisdom',
+        'Техника': 'intelligence', 'Медицина': 'intelligence',
+        'Устойчивость(имп)': 'system', 'Устойчивость(скр)': 'system',
+        'Огнестрел. оружие': 'strength', 'Холодное оружие': 'strength'
+    };
+    const signed = n => (n >= 0 ? '+' : '') + n;
 
     function getMod(value) {
         value = parseInt(value) || 10;
-        if (value < 1) value = 1;
-        if (value > 30) value = 30;
+        value = Math.min(30, Math.max(1, value));
         return modTable[String(value)] || 0;
+    }
+
+    function updateHp() {
+        const cur = parseInt(document.querySelector('[name="hp_current"]').value) || 0;
+        const max = parseInt(document.querySelector('[name="hp_max"]').value) || 0;
+        const pct = max > 0 ? Math.max(0, Math.min(100, cur / max * 100)) : 0;
+        const bar = document.getElementById('hpBar');
+        bar.firstElementChild.style.width = pct + '%';
+        bar.classList.toggle('low', pct > 0 && pct <= 25);
+        bar.setAttribute('aria-label', 'Хиты: ' + cur + ' из ' + max);
+    }
+
+    function updateImplants() {
+        let n = 0;
+        document.querySelectorAll('[name^="implants_"]').forEach(t => { n += t.value.split('\n').filter(l => l.trim()).length; });
+        document.getElementById('implantCount').textContent = n;
     }
 
     function updateStats() {
         document.querySelectorAll('.stat-value').forEach(input => {
-            const statName = input.dataset.stat;
-            const val = parseInt(input.value) || 10;
-            const mod = getMod(val);
-            const modInput = document.getElementById('mod_' + statName);
-            if (modInput) modInput.value = mod;
+            const out = document.getElementById('mod_' + input.dataset.stat);
+            if (out) out.textContent = signed(getMod(input.value));
         });
 
-        let proficiencyBonus = 2;
         const level = parseInt(document.querySelector('select[name="level"]').value) || 1;
-        if (level >= 5) proficiencyBonus = 3;
-        if (level >= 9) proficiencyBonus = 4;
-        if (level >= 13) proficiencyBonus = 5;
-        if (level >= 17) proficiencyBonus = 6;
+        const prof = level >= 17 ? 6 : level >= 13 ? 5 : level >= 9 ? 4 : level >= 5 ? 3 : 2;
 
-        document.querySelectorAll('.skill-bonus').forEach(bonusInput => {
-            const skillDiv = bonusInput.closest('div');
-            const skillName = skillDiv.querySelector('span').innerText.trim();
-            const statMap = {
-                'Эго': 'charisma',
-                'Присутствие': 'charisma',
-                'Соц. рейтинг': 'intelligence',
-                'Проворство': 'dexterity',
-                'Реакция': 'dexterity',
-                'Скрытность': 'dexterity',
-                'Внимательность': 'wisdom',
-                'Хладнокровие': 'wisdom',
-                'Техника': 'intelligence',
-                'Медицина': 'intelligence',
-                'Наука': 'intelligence',
-                'Огнестрел. оружие': 'system',
-                'Холодное оружие': 'strength',
-                'Устойчивость(имп)': 'constitution',
-                'Устойчивость(скр)': 'constitution'
-            };
-            const relatedStat = statMap[skillName] || 'strength';
-            const statValue = parseInt(document.querySelector(`.stat-value[data-stat="${relatedStat}"]`).value) || 10;
-            const statMod = getMod(statValue);
-
-            const profChecked = skillDiv.querySelector('.skill-prof').checked;
-            const expertChecked = skillDiv.querySelector('.skill-expert').checked;
-
-            let bonus = statMod;
-            if (expertChecked) {
-                bonus += proficiencyBonus * 2;
-            } else if (profChecked) {
-                bonus += proficiencyBonus;
-            }
-            bonusInput.value = bonus;
+        const bonuses = {};
+        document.querySelectorAll('.skill-row').forEach(row => {
+            const name = row.querySelector('.sk-name').textContent.trim();
+            const statInput = document.querySelector(`.stat-value[data-stat="${skillStat[name] || 'strength'}"]`);
+            let bonus = statInput ? getMod(statInput.value) : 0;
+            if (row.querySelector('.skill-expert').checked) bonus += prof * 2;
+            else if (row.querySelector('.skill-prof').checked) bonus += prof;
+            bonuses[name] = bonus;
+            row.querySelector('.skill-bonus').value = signed(bonus);
         });
+
+        // пассивные навыки: 10 + бонус навыка
+        const att = 10 + (bonuses['Внимательность'] || 0), imp = 10 + (bonuses['Устойчивость(имп)'] || 0), scr = 10 + (bonuses['Устойчивость(скр)'] || 0);
+        document.getElementById('pas_att').textContent = att;
+        document.getElementById('pas_imp').textContent = imp;
+        document.getElementById('pas_scr').textContent = scr;
+        document.getElementById('passive_skills').value = `Вним. ${att}, Устойч.имп. ${imp}, Устойч.скр. ${scr}`;
+
+        updateHp();
+        updateImplants();
     }
 
-    document.addEventListener('DOMContentLoaded', function() {
-        document.querySelectorAll('.stat-value').forEach(input => {
-            input.addEventListener('input', updateStats);
-        });
-        document.querySelector('select[name="level"]').addEventListener('change', updateStats);
-        document.querySelectorAll('.skill-prof, .skill-expert').forEach(cb => {
-            cb.addEventListener('change', updateStats);
-        });
+    const RO = {{ 'true' if ro else 'false' }};
+    document.addEventListener('DOMContentLoaded', function () {
+        if (RO) { updateStats(); return; }
+        const form = document.getElementById('sheetForm');
+        const state = document.getElementById('saveState');
+        const btn = document.getElementById('saveSheet');
 
-        document.getElementById('saveSheet').addEventListener('click', function() {
-            const form = document.getElementById('sheetForm');
-            const formData = new FormData(form);
+        const markDirty = () => { state.textContent = 'Есть несохранённые изменения'; state.classList.add('dirty'); };
+        form.addEventListener('input', e => { if (e.target.id === 'photoFile') return; updateStats(); markDirty(); });
+        form.addEventListener('change', e => { if (e.target.id === 'photoFile') return; updateStats(); markDirty(); });
+
+        function save() {
             const data = {};
-            for (let [key, value] of formData.entries()) {
+            for (const [key, value] of new FormData(form).entries()) {
                 if (key.endsWith('[]')) {
-                    const realKey = key.slice(0, -2);
-                    if (!data[realKey]) data[realKey] = [];
-                    data[realKey].push(value);
+                    const k = key.slice(0, -2);
+                    (data[k] = data[k] || []).push(value);
                 } else {
                     data[key] = value;
                 }
             }
+            // индекс навыка в исходном списке сохраняется из data-skill, порядок отображения на бланке другой
             const skills = [];
-            document.querySelectorAll('.skill-bonus').forEach(bonusInput => {
-                const div = bonusInput.closest('div');
-                const name = div.querySelector('span').innerText.trim();
-                const prof = div.querySelector('.skill-prof').checked;
-                const expert = div.querySelector('.skill-expert').checked;
-                const statMap = {
-                    'Эго': 'charisma',
-                    'Присутствие': 'charisma',
-                    'Соц. рейтинг': 'intelligence',
-                    'Проворство': 'dexterity',
-                    'Реакция': 'dexterity',
-                    'Скрытность': 'dexterity',
-                    'Внимательность': 'wisdom',
-                    'Хладнокровие': 'wisdom',
-                    'Техника': 'intelligence',
-                    'Медицина': 'intelligence',
-                    'Наука': 'intelligence',
-                    'Огнестрел. оружие': 'system',
-                    'Холодное оружие': 'strength',
-                    'Устойчивость(имп)': 'constitution',
-                    'Устойчивость(скр)': 'constitution'
+            document.querySelectorAll('.skill-row').forEach(row => {
+                const name = row.querySelector('.sk-name').textContent.trim();
+                skills[parseInt(row.querySelector('.skill-prof').dataset.skill)] = {
+                    name, stat: skillStat[name] || 'strength',
+                    proficient: row.querySelector('.skill-prof').checked,
+                    expertise: row.querySelector('.skill-expert').checked
                 };
-                const stat = statMap[name] || 'strength';
-                skills.push({ name, stat, proficient: prof, expertise: expert });
             });
-            data.skills = skills;
+            data.skills = skills.filter(Boolean);
+            data.stats = {};
+            document.querySelectorAll('.stat-value').forEach(i => { data.stats[i.dataset.stat] = parseInt(i.value) || 10; });
 
-            const stats = {};
-            document.querySelectorAll('.stat-value').forEach(input => {
-                stats[input.dataset.stat] = parseInt(input.value) || 10;
-            });
-            data.stats = stats;
-
+            btn.disabled = true; btn.textContent = 'Сохранение…';
             fetch('{{ url_for("sheet_edit", sheet_id=sheet_id) }}', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -295,14 +317,180 @@
             .then(res => res.json())
             .then(result => {
                 if (result.status === 'ok') {
-                    alert('Сохранено!');
-                } else {
-                    alert('Ошибка сохранения.');
-                }
-            });
-        });
+                    state.textContent = 'Всё сохранено'; state.classList.remove('dirty');
+                    showToast('Лист сохранён', 'success');
+                } else { showToast('Ошибка сохранения', 'danger'); }
+            })
+            .catch(() => showToast('Нет связи с сервером — изменения не сохранены', 'danger'))
+            .finally(() => { btn.disabled = false; btn.textContent = 'Сохранить'; });
+        }
 
+        btn.addEventListener('click', save);
+        document.addEventListener('keydown', e => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); }
+        });
+        window.addEventListener('beforeunload', e => { if (state.classList.contains('dirty')) { e.preventDefault(); e.returnValue = ''; } });
+
+
+        /* ---- фото персонажа: загрузка сразу на сервер (отдельно от «Сохранить») ---- */
+        (function () {
+            const box = document.getElementById('photoBox'), img = document.getElementById('photoImg'),
+                  file = document.getElementById('photoFile'), pick = document.getElementById('photoPick'), del = document.getElementById('photoDel');
+            if (!file) return;
+            const url = '{{ url_for("sheet_photo", sheet_id=sheet_id) }}';
+            const OK = /^image\/(png|jpe?g|gif|webp)$/;
+            function show(src) {
+                if (src) { img.src = src + '?t=' + Date.now(); img.hidden = false; box.classList.add('has'); del.hidden = false; pick.textContent = 'Заменить'; }
+                else { img.removeAttribute('src'); img.hidden = true; box.classList.remove('has'); del.hidden = true; pick.textContent = 'Загрузить'; }
+            }
+            // большие фото с телефона уменьшаем до 1600 px перед отправкой
+            async function shrink(f) {
+                if (f.type === 'image/gif' || f.size < 1.2 * 1024 * 1024) return f;
+                try {
+                    const bmp = await createImageBitmap(f), k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+                    const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+                    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+                    return await new Promise(r => c.toBlob(b => r(b || f), 'image/jpeg', .86));
+                } catch (e) { return f; }
+            }
+            async function upload(f) {
+                if (!f) return;
+                if (!OK.test(f.type)) { showToast('Поддерживаются только PNG, JPG, GIF и WEBP', 'danger'); return; }
+                box.classList.add('busy');
+                try {
+                    const blob = await shrink(f);
+                    if (blob.size > 6 * 1024 * 1024) { showToast('Файл слишком большой (максимум 6 МБ)', 'danger'); return; }
+                    const fd = new FormData(); fd.append('photo', blob, f.name);
+                    const r = await fetch(url, { method: 'POST', body: fd });
+                    const j = await r.json().catch(() => ({}));
+                    if (r.ok && j.status === 'ok') { show(j.url); showToast('Фото загружено', 'success'); }
+                    else showToast(j.message || 'Не удалось загрузить фото', 'danger');
+                } catch (e) { showToast('Нет связи с сервером — фото не загружено', 'danger'); }
+                finally { box.classList.remove('busy'); file.value = ''; }
+            }
+            pick.addEventListener('click', () => file.click());
+            box.addEventListener('click', () => file.click());
+            box.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); file.click(); } });
+            file.addEventListener('change', () => upload(file.files[0]));
+            ['dragenter', 'dragover'].forEach(ev => box.addEventListener(ev, e => { e.preventDefault(); box.classList.add('drag'); }));
+            ['dragleave', 'drop'].forEach(ev => box.addEventListener(ev, e => { e.preventDefault(); box.classList.remove('drag'); }));
+            box.addEventListener('drop', e => upload(e.dataTransfer.files[0]));
+            del.addEventListener('click', async () => {
+                if (!confirm('Удалить фото персонажа?')) return;
+                box.classList.add('busy');
+                try {
+                    const r = await fetch(url, { method: 'DELETE' }); const j = await r.json().catch(() => ({}));
+                    if (r.ok && j.status === 'ok') { show(''); showToast('Фото удалено', 'success'); } else showToast(j.message || 'Не удалось удалить фото', 'danger');
+                } catch (e) { showToast('Нет связи с сервером', 'danger'); }
+                finally { box.classList.remove('busy'); }
+            });
+        })();
         updateStats();
     });
+</script>
+
+<script>
+/* Скелет из точек: плотность берётся с рисунка static/img/skeleton.png (тёмное = кость).
+   Точки мерцают, по ним ходит луч-сканер; зоны (голова / руки / тело / ноги) загораются,
+   когда в поле импланта есть текст или оно в фокусе. */
+(function () {
+    const cv = document.getElementById('skeleton');
+    if (!cv) return;
+    const ctx = cv.getContext('2d');
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const W = 200;
+    let H = 434, cssW = 0, dpr = 1;
+    const dots = [];
+
+    // --- зоны
+    const fields = { head: 'i_head', arms: 'i_arms', body: 'i_body', legs: 'i_legs' };
+    const level = { head: 0, arms: 0, body: 0, legs: 0 }, focus = { head: 0, arms: 0, body: 0, legs: 0 };
+    const target = { head: 0, arms: 0, body: 0, legs: 0 };
+    const regionEl = {};
+    Object.entries(fields).forEach(([reg, id]) => {
+        const el = regionEl[reg] = document.getElementById(id); if (!el) return;
+        const sync = () => { target[reg] = el.value.trim() ? 1 : 0; };
+        el.addEventListener('input', () => { sync(); focus[reg] = 1.4; if (reduce) draw(performance.now()); });
+        el.addEventListener('focus', () => { focus[reg] = 1.4; });
+        el.addEventListener('blur', () => { focus[reg] = 0; });
+        sync(); level[reg] = target[reg];
+    });
+    // координаты в пикселях исходного рисунка (469 × 1018, ось симметрии x = 235)
+    function region(x, y) {
+        const px = x * 469 / W, py = y * 1018 / H, dx = Math.abs(px - 235);
+        if (py < 180) return 'head';
+        if (dx > 90 && (py <= 470 || dx > 125) && py <= 640) return 'arms';
+        if (py >= 515) return 'legs';
+        return 'body';
+    }
+
+    // --- точки из картинки
+    const img = new Image();
+    img.onload = function () {
+        H = Math.round(W * img.naturalHeight / img.naturalWidth);
+        cv.style.aspectRatio = W + ' / ' + H;
+        const S = 3, off = document.createElement('canvas'); off.width = W * S; off.height = H * S;
+        const o = off.getContext('2d', { willReadFrequently: true });
+        o.fillStyle = '#fff'; o.fillRect(0, 0, off.width, off.height);
+        o.drawImage(img, 0, 0, off.width, off.height);
+        const px = o.getImageData(0, 0, off.width, off.height).data;
+        const val = (x, y) => 1 - px[((y * S | 0) * off.width + (x * S | 0)) * 4] / 255;
+
+        let seed = 20790721;
+        const rnd = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+        const step = .9;
+        for (let y = 0; y < H; y += step) for (let x = 0; x < W; x += step) {
+            const v = val(x, y);
+            if (v < .22) continue;
+            if (rnd() < Math.pow((v - .15) / .85, 1.7) * 1.05) {
+                const dx = x + (rnd() - .5) * 1.1, dy = y + (rnd() - .5) * 1.1;
+                dots.push({ x: dx, y: dy, r: .4 + rnd() * .5, b: .35 + v * .65, ph: rnd() * 6.28, sp: .8 + rnd() * 2.2, reg: region(dx, dy) });
+                if (rnd() < .035) { const a = rnd() * 6.28, d = 2 + rnd() * 6, sx = dx + Math.cos(a) * d, sy = dy + Math.sin(a) * d; dots.push({ x: sx, y: sy, r: .3 + rnd() * .3, b: .25, ph: rnd() * 6.28, sp: 1 + rnd() * 3, reg: region(sx, sy) }); }
+            }
+        }
+        fit(); draw(performance.now()); start();
+    };
+    img.src = "{{ url_for('static', filename='img/skeleton.png') }}";
+
+    // --- рендер
+    function fit() {
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        cssW = cv.clientWidth || 240;
+        cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssW * dpr * H / W);
+    }
+    window.addEventListener('resize', () => { fit(); draw(performance.now()); });
+
+    function draw(now) {
+        if (!dots.length) return;
+        const t = now / 1000, k = cv.width / W;
+        const scanY = ((t * 80) % (H + 100)) - 50;
+        ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
+        ctx.setTransform(k, 0, 0, k, 0, 0);
+        for (const r in level) level[r] += (target[r] - level[r]) * .08;
+        const hot = [];
+        ctx.fillStyle = '#7fb4ff';
+        for (const d of dots) {
+            const tw = reduce ? .85 : .72 + .28 * Math.sin(t * d.sp + d.ph);
+            const sc = reduce ? 0 : Math.max(0, 1 - Math.abs(d.y - scanY) / 22);
+            const act = level[d.reg] * .35 + Math.min(1, focus[d.reg]) * .45;
+            const a = Math.min(1, d.b * tw * (.9 + act) + sc * .9);
+            if (a < .06) continue;
+            if (sc > .25 || (act > .5 && tw > .85)) { hot.push(d, a); continue; }
+            ctx.globalAlpha = a;
+            ctx.fillRect(d.x - d.r, d.y - d.r, d.r * 2, d.r * 2);
+        }
+        ctx.fillStyle = '#f2f8ff';
+        for (let i = 0; i < hot.length; i += 2) { const d = hot[i]; ctx.globalAlpha = hot[i + 1]; ctx.fillRect(d.x - d.r * 1.2, d.y - d.r * 1.2, d.r * 2.4, d.r * 2.4); }
+        ctx.globalAlpha = 1;
+        for (const r in focus) if (focus[r] > 0 && document.activeElement !== regionEl[r]) focus[r] = Math.max(0, focus[r] - .02);
+    }
+
+    let raf = 0, last = 0;
+    function loop(now) { raf = requestAnimationFrame(loop); if (now - last < 33) return; last = now; draw(now); }
+    function start() {
+        if (reduce) return;
+        new IntersectionObserver(es => { cancelAnimationFrame(raf); if (es[0].isIntersecting) raf = requestAnimationFrame(loop); }).observe(cv);
+    }
+})();
 </script>
 {% endblock %}

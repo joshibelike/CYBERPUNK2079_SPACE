@@ -3,38 +3,211 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CYBERPUNK 2079 - SPACE</title>
+    <meta name="theme-color" content="#02050d">
+    <title>{% block title %}CYBERPUNK 2079 — SPACE{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body>
-    <div class="header">
-        <ul class="header_menu">
-            <a href="{{ url_for('show_classes') }}" style="text-decoration: none;"><h2>Классы</h2></a>
-            <a href="{{ url_for('show_backgrounds') }}" style="text-decoration: none;"><h2>Предыстории</h2></a>
-            <a href="{{ url_for('index') }}" style="text-decoration: none;"><h1 class="cyberpunk_text">CYBERPUNK 2079 - SPACE</h1></a>
-            <a href="{{ url_for('sheets_list') }}" style="text-decoration: none;"><h2>Лист</h2></a>
-            <a href="{{ url_for('index') }}" style="text-decoration: none;"><h2>Лор</h2></a>
-            <a href="{{ url_for('account') }}" style="text-decoration: none;"><h2>(АККАУНТ)</h2></a>
-        </ul>
+{% set ep = request.endpoint or '' %}
+<body class="page-{{ ep }}">
+    <a class="skip-link" href="#main">Перейти к содержимому</a>
+
+    <div class="bg-layers" aria-hidden="true">
+        <div class="bg-glow"></div>
+        <div class="bg-grid"></div>
+        <canvas class="stars" id="stars"></canvas>
+        <div class="bg-grain"></div>
     </div>
-    <div class="flash-messages">
+    <div class="rail rail-left" aria-hidden="true"><span>SPACE // ORBITAL CREW MANIFEST</span></div>
+    <div class="rail rail-right" aria-hidden="true"><span>72:0-1 — NIGHT CITY DIASPORA</span></div>
+
+    <header class="topbar">
+        <div class="topbar-inner">
+            <a class="brand" href="{{ url_for('index') }}" aria-label="CYBERPUNK 2079 — на главную">
+                <svg class="brand-mark" viewBox="0 0 32 32" width="34" height="34" aria-hidden="true"><path d="M16 0.5 C17.2 9.5 22.5 14.8 31.5 16 C22.5 17.2 17.2 22.5 16 31.5 C14.8 22.5 9.5 17.2 0.5 16 C9.5 14.8 14.8 9.5 16 0.5Z" fill="currentColor"/><path d="M16 9 C16.6 13.4 18.6 15.4 23 16 C18.6 16.6 16.6 18.6 16 23 C15.4 18.6 13.4 16.6 9 16 C13.4 15.4 15.4 13.4 16 9Z" fill="#02050d"/></svg>
+                <span class="brand-text">
+                    <b class="cyberpunk_text">CYBERPUNK 2079</b>
+                    <small>SPACE</small>
+                </span>
+            </a>
+
+            <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="mainnav">
+                <span class="sr-only">Меню</span>
+                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M3 7h18M3 12h18M3 17h18" stroke="currentColor" stroke-width="1.8" fill="none"/></svg>
+            </button>
+
+            <nav class="mainnav" id="mainnav" aria-label="Основная навигация">
+                <a href="{{ url_for('show_classes') }}" class="{{ 'active' if ep in ('show_classes','add_class') }}"><i>01</i>Классы</a>
+                <a href="{{ url_for('show_backgrounds') }}" class="{{ 'active' if ep in ('show_backgrounds','add_background') }}"><i>02</i>Предыстории</a>
+                <a href="{{ url_for('sheets_list') }}" class="{{ 'active' if ep in ('sheets_list','sheet_edit','new_sheet') }}"><i>03</i>Лист</a>
+                <a href="{{ url_for('characters_list') }}" class="{{ 'active' if ep in ('characters_list','character_view') }}"><i>04</i>Персонажи</a>
+                <a href="{{ url_for('index') }}#lore"><i>05</i>Лор</a>
+                <a href="{{ url_for('account') }}" class="nav-account {{ 'active' if ep in ('account','admin_panel') }}">
+                    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M4 21c1-4.5 4-6 8-6s7 1.5 8 6" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
+                    {% if session.get('user_id') %}Аккаунт{% else %}Войти{% endif %}
+                </a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="toasts" role="status" aria-live="polite" id="toasts">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% for category, message in messages %}
-                <div class="flash {{ category }}">{{ message }}</div>
+                <div class="toast {{ category }}">
+                    <span class="toast-tag">{{ {'success':'OK','danger':'ERR','info':'INFO'}.get(category, 'MSG') }}</span>
+                    <span class="toast-text">{{ message }}</span>
+                    <button type="button" class="toast-close" aria-label="Закрыть">×</button>
+                </div>
             {% endfor %}
         {% endwith %}
     </div>
-    <main class="main-content">
+
+    <main class="main-content" id="main">
         {% block content %}{% endblock %}
     </main>
-    <div class="footer">
-        <div class="footer_lore">
-            <h2>Данный сайт был создан в качестве итогового проекта для Яндекс.Лицея 2025-2026 программы ПРОМЫШЛЕННОЕ ПРОГРАМИРОВАНИЕ</h2>
-            <h3>Автор сайта: Турлова М.Д.</h3>
-            <a href="https://discordapp.com/users/joshibelike" target="_blank">DISCORD</a>
-            <a href="https://github.com/joshibelike" target="_blank">GITHUB</a>
-            <a href="https://t.me/joshibelike" target="_blank">TG</a>
+
+    <footer class="footer">
+        <div class="footer-inner">
+            <p class="footer-note">Данный сайт был создан в качестве итогового проекта для Яндекс.Лицея 2025–2026 программы «Промышленное программирование». Ныне обновляется для игроков CYBERPUNK_2079</p>
+            <div class="footer-meta">
+                <span class="mono">Автор сайта: Турлова М.Д.</span>
+                <nav class="footer-links" aria-label="Контакты автора">
+                    <a href="https://discordapp.com/users/joshibelike" target="_blank" rel="noopener">Discord</a>
+                    <a href="https://github.com/joshibelike" target="_blank" rel="noopener">GitHub</a>
+                    <a href="https://t.me/joshibelike" target="_blank" rel="noopener">Telegram</a>
+                </nav>
+            </div>
         </div>
-    </div>
+    </footer>
+
+    <script>
+    (function () {
+        var toggle = document.querySelector('.nav-toggle');
+        var nav = document.getElementById('mainnav');
+        toggle.addEventListener('click', function () {
+            var open = nav.classList.toggle('open');
+            toggle.setAttribute('aria-expanded', open);
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && nav.classList.contains('open')) { nav.classList.remove('open'); toggle.setAttribute('aria-expanded', 'false'); toggle.focus(); }
+        });
+
+        window.showToast = function (text, kind) {
+            var box = document.getElementById('toasts');
+            var el = document.createElement('div');
+            el.className = 'toast ' + (kind || 'info');
+            var tag = {success: 'OK', danger: 'ERR', info: 'INFO'}[kind] || 'MSG';
+            el.innerHTML = '<span class="toast-tag">' + tag + '</span><span class="toast-text"></span><button type="button" class="toast-close" aria-label="Закрыть">×</button>';
+            el.querySelector('.toast-text').textContent = text;
+            box.appendChild(el);
+            arm(el);
+        };
+        function arm(el) {
+            var kill = function () { el.classList.add('leaving'); setTimeout(function () { el.remove(); }, 250); };
+            el.querySelector('.toast-close').addEventListener('click', kill);
+            setTimeout(kill, 6000);
+        }
+        document.querySelectorAll('.toast').forEach(arm);
+
+
+        /* ---- заголовки: глитч ---- */
+        document.querySelectorAll('.page-head h1, .hero-title h1').forEach(function (h) {
+            h.dataset.text = h.innerText.trim(); h.classList.add('glitch');
+        });
+
+        /* ---- подсветка панелей под курсором + наклон карточек ---- */
+        document.addEventListener('pointermove', function (e) {
+            var p = e.target.closest && e.target.closest('.panel');
+            if (p) {
+                var r = p.getBoundingClientRect();
+                p.style.setProperty('--mx', (e.clientX - r.left) + 'px');
+                p.style.setProperty('--my', (e.clientY - r.top) + 'px');
+            }
+            var g = e.target.closest && e.target.closest('.gate');
+            if (g) {
+                var b = g.getBoundingClientRect();
+                g.style.setProperty('--ry', ((e.clientX - b.left) / b.width - .5) * 9 + 'deg');
+                g.style.setProperty('--rx', (.5 - (e.clientY - b.top) / b.height) * 9 + 'deg');
+            }
+        }, {passive: true});
+        document.querySelectorAll('.gate').forEach(function (g) {
+            g.addEventListener('pointerleave', function () { g.style.setProperty('--rx', '0deg'); g.style.setProperty('--ry', '0deg'); });
+        });
+
+        /* ---- счётчик цифр в герое ---- */
+        if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            document.querySelectorAll('[data-count]').forEach(function (el) {
+                var to = parseInt(el.dataset.count, 10), t0 = performance.now(), dur = 1500;
+                (function tick(now) {
+                    var k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+                    el.textContent = String(Math.round(to * e)).padStart(2, '0');
+                    if (k < 1) requestAnimationFrame(tick);
+                })(t0);
+            });
+        }
+
+        /* ---- звёздное небо: мерцание и четырёхконечные искры ---- */
+        (function () {
+            var cv = document.getElementById('stars'); if (!cv) return;
+            var ctx = cv.getContext('2d'), reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+            var W, H, dpr, stars = [], sparks = [];
+            function size() {
+                dpr = Math.min(window.devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight;
+                cv.width = W * dpr; cv.height = H * dpr;
+                var n = Math.round(W * H / 14000);
+                stars = []; sparks = [];
+                for (var i = 0; i < n; i++) stars.push({x: Math.random() * W, y: Math.random() * H, r: Math.random() * 1.1 + .25, ph: Math.random() * 6.28, sp: .5 + Math.random() * 2, v: .02 + Math.random() * .05});
+                for (var j = 0; j < 9; j++) sparks.push({x: Math.random() * W, y: Math.random() * H, s: 5 + Math.random() * 9, ph: Math.random() * 6.28, sp: .4 + Math.random() * .9});
+            }
+            function spark(x, y, s, a) {
+                ctx.globalAlpha = a; ctx.strokeStyle = '#cfe2ff'; ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(x - s, y); ctx.lineTo(x + s, y); ctx.moveTo(x, y - s); ctx.lineTo(x, y + s); ctx.stroke();
+                ctx.globalAlpha = a * .5; ctx.beginPath(); ctx.arc(x, y, s * .22, 0, 6.28); ctx.fillStyle = '#eaf3ff'; ctx.fill();
+            }
+            function draw(now) {
+                var t = now / 1000;
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H); ctx.fillStyle = '#bcd6ff';
+                stars.forEach(function (s) {
+                    ctx.globalAlpha = reduce ? .5 : .25 + .75 * (.5 + .5 * Math.sin(t * s.sp + s.ph));
+                    ctx.fillRect(s.x, s.y, s.r, s.r);
+                    if (!reduce) { s.y -= s.v; if (s.y < -2) s.y = H + 2; }
+                });
+                sparks.forEach(function (s) { spark(s.x, s.y, s.s, reduce ? .5 : Math.max(0, Math.sin(t * s.sp + s.ph)) * .9); });
+                ctx.globalAlpha = 1;
+            }
+            size(); draw(0);
+            addEventListener('resize', function () { size(); draw(performance.now()); });
+            if (!reduce) {
+                var last = 0;
+                (function loop(now) { requestAnimationFrame(loop); if (now - last < 40) return; last = now; if (!document.hidden) draw(now); })(0);
+            }
+        })();
+
+
+        /* ---- «живые» часы на фото-эффекте ---- */
+        (function () {
+            var els = document.querySelectorAll('[data-clock]'); if (!els.length) return;
+            var p = function (n) { return String(n).padStart(2, '0'); };
+            function tick() {
+                var d = new Date();
+                var t = p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()) + '\n' + d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+                els.forEach(function (e) { e.textContent = t; });
+            }
+            tick(); setInterval(tick, 1000);
+        })();
+
+        var items = document.querySelectorAll('[data-reveal]');
+        if ('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            var io = new IntersectionObserver(function (entries) {
+                entries.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } });
+            }, {threshold: 0, rootMargin: '0px 0px -40px 0px'});
+            items.forEach(function (el, i) { el.style.setProperty('--d', (i % 6) * 70 + 'ms'); io.observe(el); });
+        } else {
+            items.forEach(function (el) { el.classList.add('in'); });
+        }
+    })();
+    </script>
 </body>
 </html>

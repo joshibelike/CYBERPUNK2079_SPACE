@@ -1,22 +1,43 @@
 {% extends "base.html" %}
+{% block title %}Предыстории — CYBERPUNK 2079{% endblock %}
 
 {% block content %}
+<header class="page-head">
+    <div class="eyebrow">Раздел 02</div>
+    <h1>Предыстории</h1>
+    <p class="lede">Откуда пришёл ваш персонаж — и что он унёс с собой на корабль.</p>
+    <div class="head-meta" aria-hidden="true"><b>{{ '%02d'|format(backgrounds|length) }}</b>предысторий в базе</div>
+</header>
+
+{% if backgrounds|length > 1 %}
+<nav class="chips" aria-label="Быстрый переход к предыстории">
+    {% for bg_item in backgrounds %}
+    <a class="chip" href="#bg-{{ bg_item.background.id }}"><i>{{ '%02d'|format(loop.index) }}</i>{{ bg_item.background.name }}</a>
+    {% endfor %}
+</nav>
+{% endif %}
+
 <div class="backgrounds-grid">
     {% for bg_item in backgrounds %}
-    <div class="cyber-card bg-card">
-        <h3>{{ bg_item.background.name }}</h3>
-        <p><strong>Описание:</strong> {{ bg_item.background.description|replace('\n','<br>')|safe }}</p>
-        <p><strong>Навыки:</strong> {{ bg_item.background.skill_profs }}</p>
-        <p><strong>Снаряжение:</strong> {{ bg_item.background.equipment|replace('\n','<br>')|safe }}</p>
-        {% if bg_item.background.languages %}
-        <p><strong>Языки:</strong> {{ bg_item.background.languages }}</p>
-        {% endif %}
+    <article class="panel cyber-card bg-card" id="bg-{{ bg_item.background.id }}" data-reveal>
+        <div class="card-head">
+            <h3>{{ bg_item.background.name }}</h3>
+            <span class="card-num" aria-hidden="true">{{ '%02d'|format(loop.index) }}</span>
+        </div>
+
+        <dl class="kv">
+            <div><dt>Описание</dt><dd>{{ bg_item.background.description|replace('\n','<br>')|safe }}</dd></div>
+            <div><dt>Навыки</dt><dd>{{ bg_item.background.skill_profs }}</dd></div>
+            <div><dt>Снаряжение</dt><dd>{{ bg_item.background.equipment|replace('\n','<br>')|safe }}</dd></div>
+            {% if bg_item.background.languages %}
+            <div><dt>Языки</dt><dd>{{ bg_item.background.languages }}</dd></div>
+            {% endif %}
+        </dl>
+
         {% for group in bg_item.choice_groups %}
         <div class="choice-group">
             <h4>{{ group.group_title }}</h4>
-            {% set options = group.options_json|safe %}
-            {% if options is string %}{% set options = options|tojson|safe %}{% endif %}
-            {% for opt in options %}
+            {% for opt in group.options %}
             <div class="choice-option">
                 <strong>{{ opt.name }}</strong>
                 <p>{{ opt.bonus }}</p>
@@ -24,23 +45,24 @@
             {% endfor %}
         </div>
         {% endfor %}
-        <div class="feature-item">
-            <strong>{{ bg_item.background.feature_name }}</strong>
-            <p>{{ bg_item.background.feature_description|replace('\n','<br>')|safe }}</p>
+
+        <div class="feature-list">
+            <span class="tag">Особенность</span>
+            <details class="feature-item" open>
+                <summary>{{ bg_item.background.feature_name }}</summary>
+                <div class="feature-body">{{ bg_item.background.feature_description|replace('\n','<br>')|safe }}</div>
+            </details>
         </div>
+
         {% if session.get('is_admin') %}
-        <div style="margin-top: 1rem; text-align: right;">
-            <a href="{{ url_for('delete_background', bg_id=bg_item.background.id) }}"
-               class="cyber-button"
-               style="background: #aa0000; width: auto; font-size: 0.9rem; padding: 0.3rem 1rem;"
-               onclick="return confirm('Удалить предысторию {{ bg_item.background.name }}? Это действие необратимо.');">
-               Удалить
-            </a>
+        <div class="card-admin">
+            <a href="{{ url_for('delete_background', bg_id=bg_item.background.id) }}" class="btn btn--danger btn--sm"
+               onclick="return confirm('Удалить предысторию {{ bg_item.background.name }}? Это действие необратимо.');">Удалить</a>
         </div>
         {% endif %}
-    </div>
+    </article>
     {% else %}
-    <p>Предыстории пока не добавлены. Зайдите в админ-панель.</p>
+    <div class="panel empty"><b>Пока пусто</b>Предыстории ещё не добавлены. Зайдите в админ-панель.</div>
     {% endfor %}
 </div>
 {% endblock %}

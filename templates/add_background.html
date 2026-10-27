@@ -1,25 +1,29 @@
 {% extends "base.html" %}
+{% block title %}Добавить предысторию — CYBERPUNK 2079{% endblock %}
 
 {% block content %}
-<div class="profile-card">
-    <h2>Добавить предысторию</h2>
+<header class="page-head">
+    <div class="eyebrow">Админ-панель</div>
+    <h1>Новая предыстория</h1>
+</header>
+<div class="panel form-card">
     <form method="post" class="cyber-form">
-        <label>Название</label>
-        <input type="text" name="name" required>
-        <label>Описание</label>
-        <textarea name="description" rows="4" required></textarea>
-        <label>Навыки (через запятую)</label>
-        <input type="text" name="skill_proficiencies" required>
-        <label>Снаряжение</label>
-        <textarea name="equipment" rows="3" required></textarea>
-        <label>Языки</label>
-        <input type="text" name="languages">
-        <label>Название особенности</label>
-        <input type="text" name="feature_name" required>
-        <label>Описание особенности</label>
-        <textarea name="feature_description" rows="3" required></textarea>
+        <label for="b-name">Название</label>
+        <input id="b-name" type="text" name="name" required>
+        <label for="b-desc">Описание</label>
+        <textarea id="b-desc" name="description" rows="4" required></textarea>
+        <label for="b-sk">Навыки (через запятую)</label>
+        <input id="b-sk" type="text" name="skill_proficiencies" required>
+        <label for="b-eq">Снаряжение</label>
+        <textarea id="b-eq" name="equipment" rows="3" required></textarea>
+        <label for="b-lang">Языки</label>
+        <input id="b-lang" type="text" name="languages">
+        <label for="b-fn">Название особенности</label>
+        <input id="b-fn" type="text" name="feature_name" required>
+        <label for="b-fd">Описание особенности</label>
+        <textarea id="b-fd" name="feature_description" rows="3" required></textarea>
 
-        <h3>Группы выбора (клан, деятельность и т.п.)</h3>
+        <h3 class="form-section">Группы выбора (клан, деятельность и т.п.)</h3>
         <div id="groups-container">
             <div class="dynamic-group">
                 <label>Заголовок группы (например: "Выбор клана")</label>
@@ -28,8 +32,10 @@
                 <textarea name="group_options[]" rows="3" placeholder="Клан Миротворцев: +1 к Присутствию&#10;Семья Альдекальдо: +1 к Эго"></textarea>
             </div>
         </div>
-        <button type="button" onclick="addGroup()" class="cyber-button" style="width: auto;">+ Добавить группу выбора</button>
-        <button type="submit" class="cyber-button" style="margin-top: 1rem;">Создать предысторию</button>
+        <div class="form-actions">
+            <button type="button" onclick="addGroup()" class="btn btn--ghost">+ Ещё группа выбора</button>
+            <button type="submit" class="btn">Создать предысторию</button>
+        </div>
     </form>
 </div>
 <script>
@@ -44,6 +50,7 @@
             <textarea name="group_options[]" rows="3"></textarea>
         `;
         container.appendChild(div);
+        div.querySelector('input').focus();
     }
 </script>
 {% endblock %}

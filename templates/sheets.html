@@ -1,9 +1,11 @@
 {% extends "base.html" %}
+{% block title %}Листы персонажа — CYBERPUNK 2079{% endblock %}
 
 {% block content %}
-<div class="profile-card">
-    <h2>ЛИСТЫ ПЕРСОНАЖА</h2>
-    <p>Здесь будут храниться ваши персонажи. Функция в разработке.</p>
-    <a href="{{ url_for('account') }}" class="cyber-button" style="display: inline-block;">Вернуться в аккаунт</a>
-</div>
+<header class="page-head">
+    <div class="eyebrow">Раздел 03</div>
+    <h1>Листы персонажа</h1>
+    <p class="lede">Здесь будут храниться ваши персонажи. Функция в разработке.</p>
+</header>
+<a href="{{ url_for('account') }}" class="btn btn--ghost">Вернуться в аккаунт</a>
 {% endblock %}

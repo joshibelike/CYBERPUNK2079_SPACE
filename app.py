@@ -1,4 +1,5 @@
 import os
+import secrets
 import sqlite3
 import json
 from functools import wraps
@@ -13,6 +14,33 @@ UPLOAD_FOLDER = 'static/uploads/avatars'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Фото персонажей: static/uploads/sheets, до 6 МБ, только PNG / JPEG / GIF / WEBP (тип определяется по содержимому)
+SHEET_PHOTO_DIR = os.path.join(app.root_path, 'static', 'uploads', 'sheets')
+SHEET_PHOTO_PREFIX = 'uploads/sheets/'
+MAX_PHOTO_BYTES = 6 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = MAX_PHOTO_BYTES + 512 * 1024
+os.makedirs(SHEET_PHOTO_DIR, exist_ok=True)
+
+
+def detect_image_ext(head):
+    if head.startswith(b'\x89PNG\r\n\x1a\n'):
+        return 'png'
+    if head.startswith(b'\xff\xd8\xff'):
+        return 'jpg'
+    if head[:6] in (b'GIF87a', b'GIF89a'):
+        return 'gif'
+    if head[:4] == b'RIFF' and head[8:12] == b'WEBP':
+        return 'webp'
+    return None
+
+
+def remove_sheet_photo(rel_path):
+    """Удаляет файл фото, только если он лежит в папке фото листов."""
+    if rel_path and rel_path.startswith(SHEET_PHOTO_PREFIX):
+        path = os.path.join(SHEET_PHOTO_DIR, os.path.basename(rel_path))
+        if os.path.isfile(path):
+            os.remove(path)
 
 
 # БД
@@ -129,6 +157,15 @@ def init_db():
                           'Вы освоили определённый подход к бою. Выберите один из вариантов выше.'))
             conn.execute("INSERT INTO class_features (class_id, feature_name, feature_description) VALUES (?, ?, ?)",
                          (class_id, 'Второе дыхание', 'Бонусное действие: восстанавливаете хиты 1d10 + уровень бойца.'))
+        # Миграция: поля «Хиты на 1 уровне» и «Инструменты» (для уже созданных БД)
+        existing_cols = {r['name'] for r in conn.execute("PRAGMA table_info(classes)")}
+        for col in ('hp_first_level', 'tool_proficiencies'):
+            if col not in existing_cols:
+                conn.execute(f"ALTER TABLE classes ADD COLUMN {col} TEXT DEFAULT ''")
+        # Миграция: публичность листа персонажа (0 — только владелец, 1 — виден в разделе «Персонажи»)
+        sheet_cols = {r['name'] for r in conn.execute("PRAGMA table_info(character_sheets)")}
+        if 'is_public' not in sheet_cols:
+            conn.execute("ALTER TABLE character_sheets ADD COLUMN is_public INTEGER DEFAULT 0")
         conn.commit()
 
 
@@ -342,9 +379,10 @@ def add_class():
         with get_db() as conn:
             cur = conn.cursor()
             cur.execute('''
-                INSERT INTO classes (name, hit_dice, hp_next_level, weapon_proficiencies, save_proficiencies, skill_proficiencies, equipment, fighting_style_choice, second_wind)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (name, hit_dice, hp_next_level, weapon_profs, save_profs, skill_profs, equipment, fighting_style,
+                INSERT INTO classes (name, hit_dice, hp_first_level, hp_next_level, weapon_proficiencies, tool_proficiencies, save_proficiencies, skill_proficiencies, equipment, fighting_style_choice, second_wind)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (name, hit_dice, request.form.get('hp_first_level', ''), hp_next_level, weapon_profs,
+                  request.form.get('tool_proficiencies', ''), save_profs, skill_profs, equipment, fighting_style,
                   second_wind))
             class_id = cur.lastrowid
             feature_names = request.form.getlist('feature_name[]')
@@ -370,7 +408,14 @@ def show_backgrounds():
             groups = conn.execute(
                 "SELECT group_title, options_json FROM background_choice_groups WHERE background_id = ?",
                 (bg['id'],)).fetchall()
-            bgs_with_groups.append({'background': bg, 'choice_groups': groups})
+            parsed = []
+            for g in groups:
+                try:
+                    options = json.loads(g['options_json'])
+                except (TypeError, ValueError):
+                    options = []
+                parsed.append({'group_title': g['group_title'], 'options': options})
+            bgs_with_groups.append({'background': bg, 'choice_groups': parsed})
     return render_template('backgrounds.html', backgrounds=bgs_with_groups)
 
 
@@ -425,7 +470,7 @@ def add_background():
 def sheets_list():
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT id, name, sheet_data, updated_at FROM character_sheets WHERE user_id = ? ORDER BY updated_at DESC",
+            "SELECT id, name, sheet_data, updated_at, is_public FROM character_sheets WHERE user_id = ? ORDER BY updated_at DESC",
             (session['user_id'],)
         ).fetchall()
 
@@ -437,9 +482,84 @@ def sheets_list():
             'name': data.get('name', 'Без имени'),
             'class': data.get('class', 'Не указан'),
             'level': data.get('level', 1),
-            'updated': row['updated_at']
+            'updated': row['updated_at'],
+            'is_public': bool(row['is_public'])
         })
     return render_template('sheets_list.html', sheets=sheets)
+
+
+# Визитка персонажа: шесть характеристик в виде кольца из шестиугольников (+ уровень в центре)
+HEX_STATS = [('strength', 'СИЛ'), ('system', 'Т.СИС'), ('dexterity', 'ЛОВ'),
+             ('wisdom', 'МУД'), ('charisma', 'ХАР'), ('intelligence', 'ИНТ')]
+
+
+def hex_points(cx, cy, r):
+    k = 0.8660254
+    pts = [(0, -1), (k, -.5), (k, .5), (0, 1), (-k, .5), (-k, -.5)]
+    return ' '.join(f'{cx + r * x:.1f},{cy + r * y:.1f}' for x, y in pts)
+
+
+def hex_ring(stats, level):
+    r, d, k = 23, 43, 0.8660254
+    positions = [(-.5 * d, -k * d), (.5 * d, -k * d), (d, 0), (.5 * d, k * d), (-.5 * d, k * d), (-d, 0)]
+    cells = []
+    for (key, label), (x, y) in zip(HEX_STATS, positions):
+        try:
+            value = int(stats.get(key, 10))
+        except (TypeError, ValueError):
+            value = 10
+        strength = max(.0, min(1., (value - 6) / 12))   # чем выше значение, тем ярче ячейка
+        cells.append({'points': hex_points(x, y, r), 'x': round(x, 1), 'y': round(y, 1), 'value': value,
+                      'label': label, 'alpha': round(.14 + .82 * strength, 2), 'light': strength > .5})
+    return {'cells': cells, 'center': {'points': hex_points(0, 0, r * .72), 'level': level}}
+
+
+# Раздел «Персонажи»: публичные листы всех игроков, только просмотр
+@app.route('/characters')
+def characters_list():
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT cs.id, cs.sheet_data, cs.updated_at, u.username, u.avatar "
+            "FROM character_sheets cs JOIN users u ON u.id = cs.user_id "
+            "WHERE cs.is_public = 1 ORDER BY cs.updated_at DESC"
+        ).fetchall()
+    characters = []
+    for row in rows:
+        data = json.loads(row['sheet_data'])
+        characters.append({
+            'id': row['id'],
+            'name': data.get('name') or 'Без имени',
+            'class': data.get('class') or '—',
+            'background': data.get('background') or '',
+            'level': data.get('level', 1),
+            'updated': row['updated_at'],
+            'owner': row['username'],
+            'avatar': row['avatar'],
+            'photo': data.get('photo') or '',
+            'ac': data.get('armor_class', 10),
+            'hp': data.get('hp_max', 0),
+            'speed': data.get('speed', 30),
+            'hexes': hex_ring(data.get('stats') or {}, data.get('level', 1)),
+        })
+    return render_template('characters.html', characters=characters)
+
+
+@app.route('/characters/<int:sheet_id>')
+def character_view(sheet_id):
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT cs.id, cs.user_id, cs.sheet_data, cs.is_public, cs.updated_at, u.username, u.avatar "
+            "FROM character_sheets cs JOIN users u ON u.id = cs.user_id WHERE cs.id = ?",
+            (sheet_id,)
+        ).fetchone()
+    if not row or not row['is_public']:
+        flash('Этот лист не найден или закрыт владельцем.', 'danger')
+        return redirect(url_for('characters_list'))
+    if session.get('user_id') == row['user_id']:
+        return redirect(url_for('sheet_edit', sheet_id=sheet_id))
+    owner = {'username': row['username'], 'avatar': row['avatar'], 'updated': row['updated_at']}
+    return render_template('sheet_edit.html', sheet_id=sheet_id, sheet=json.loads(row['sheet_data']),
+                           readonly=True, owner=owner, is_public=True)
 
 @app.route('/sheet/new', methods=['GET', 'POST'])
 @login_required
@@ -472,7 +592,7 @@ def new_sheet():
             'skills': [
                 {'name': 'Эго', 'stat': 'charisma', 'proficient': False, 'expertise': False},
                 {'name': 'Присутствие', 'stat': 'charisma', 'proficient': False, 'expertise': False},
-                {'name': 'Соц. рейтинг', 'stat': 'intelligence', 'proficient': False, 'expertise': False},
+                {'name': 'Соц. рейтинг', 'stat': 'charisma', 'proficient': False, 'expertise': False},
                 {'name': 'Проворство', 'stat': 'dexterity', 'proficient': False, 'expertise': False},
                 {'name': 'Реакция', 'stat': 'dexterity', 'proficient': False, 'expertise': False},
                 {'name': 'Скрытность', 'stat': 'dexterity', 'proficient': False, 'expertise': False},
@@ -480,11 +600,11 @@ def new_sheet():
                 {'name': 'Хладнокровие', 'stat': 'wisdom', 'proficient': False, 'expertise': False},
                 {'name': 'Техника', 'stat': 'intelligence', 'proficient': False, 'expertise': False},
                 {'name': 'Медицина', 'stat': 'intelligence', 'proficient': False, 'expertise': False},
-                {'name': 'Наука', 'stat': 'intelligence', 'proficient': False, 'expertise': False},
-                {'name': 'Огнестрел. оружие', 'stat': 'system', 'proficient': False, 'expertise': False},
+                {'name': 'Наука', 'stat': 'wisdom', 'proficient': False, 'expertise': False},
+                {'name': 'Огнестрел. оружие', 'stat': 'strength', 'proficient': False, 'expertise': False},
                 {'name': 'Холодное оружие', 'stat': 'strength', 'proficient': False, 'expertise': False},
-                {'name': 'Устойчивость(имп)', 'stat': 'constitution', 'proficient': False, 'expertise': False},
-                {'name': 'Устойчивость(скр)', 'stat': 'constitution', 'proficient': False, 'expertise': False}
+                {'name': 'Устойчивость(имп)', 'stat': 'system', 'proficient': False, 'expertise': False},
+                {'name': 'Устойчивость(скр)', 'stat': 'system', 'proficient': False, 'expertise': False}
             ],
             'languages': '',
             'features': '',
@@ -494,8 +614,8 @@ def new_sheet():
         with get_db() as conn:
             cur = conn.cursor()
             cur.execute(
-                "INSERT INTO character_sheets (user_id, name, sheet_data) VALUES (?, ?, ?)",
-                (session['user_id'], name, json.dumps(empty_sheet))
+                "INSERT INTO character_sheets (user_id, name, sheet_data, is_public) VALUES (?, ?, ?, ?)",
+                (session['user_id'], name, json.dumps(empty_sheet), 1 if request.form.get('is_public') else 0)
             )
             sheet_id = cur.lastrowid
         return redirect(url_for('sheet_edit', sheet_id=sheet_id))
@@ -507,7 +627,7 @@ def new_sheet():
 def sheet_edit(sheet_id):
     with get_db() as conn:
         row = conn.execute(
-            "SELECT id, sheet_data FROM character_sheets WHERE id = ? AND user_id = ?",
+            "SELECT id, sheet_data, is_public FROM character_sheets WHERE id = ? AND user_id = ?",
             (sheet_id, session['user_id'])
         ).fetchone()
         if not row:
@@ -519,31 +639,88 @@ def sheet_edit(sheet_id):
     if request.method == 'POST':
         new_sheet = request.get_json()
         if new_sheet:
+            # публичность хранится в отдельной колонке, а не в JSON листа
+            is_public = 1 if new_sheet.pop('is_public', None) else 0
+            # фото меняется только через /sheet/<id>/photo; значение из клиента не принимаем
+            new_sheet['photo'] = sheet.get('photo', '')
             with get_db() as conn:
                 conn.execute(
-                    "UPDATE character_sheets SET sheet_data = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                    (json.dumps(new_sheet), sheet_id)
+                    "UPDATE character_sheets SET sheet_data = ?, is_public = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (json.dumps(new_sheet), is_public, sheet_id)
                 )
             return {'status': 'ok'}
         else:
             flash('Не удалось сохранить.', 'danger')
 
-    return render_template('sheet_edit.html', sheet_id=sheet_id, sheet=sheet)
+    return render_template('sheet_edit.html', sheet_id=sheet_id, sheet=sheet, is_public=bool(row['is_public']))
 
 @app.route('/sheet/<int:sheet_id>/delete', methods=['POST'])
 @login_required
 def delete_sheet(sheet_id):
     with get_db() as conn:
         sheet = conn.execute(
-            "SELECT id FROM character_sheets WHERE id = ? AND user_id = ?",
+            "SELECT id, sheet_data FROM character_sheets WHERE id = ? AND user_id = ?",
             (sheet_id, session['user_id'])
         ).fetchone()
         if sheet:
             conn.execute("DELETE FROM character_sheets WHERE id = ?", (sheet_id,))
+            try:
+                remove_sheet_photo(json.loads(sheet['sheet_data']).get('photo', ''))
+            except (ValueError, OSError):
+                pass
             flash('Персонаж удалён.', 'success')
         else:
             flash('Ошибка: лист не найден.', 'danger')
     return redirect(url_for('sheets_list'))
+
+
+# Фото персонажа: загрузка (POST, multipart, поле «photo») и удаление (DELETE). Только владелец листа.
+@app.route('/sheet/<int:sheet_id>/photo', methods=['POST', 'DELETE'])
+@login_required
+def sheet_photo(sheet_id):
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT sheet_data FROM character_sheets WHERE id = ? AND user_id = ?",
+            (sheet_id, session['user_id'])
+        ).fetchone()
+    if not row:
+        return {'status': 'error', 'message': 'Лист не найден.'}, 404
+    sheet = json.loads(row['sheet_data'])
+    old = sheet.get('photo', '')
+
+    if request.method == 'DELETE':
+        new = ''
+    else:
+        file = request.files.get('photo')
+        if not file or not file.filename:
+            return {'status': 'error', 'message': 'Файл не выбран.'}, 400
+        data = file.read(MAX_PHOTO_BYTES + 1)
+        if len(data) > MAX_PHOTO_BYTES:
+            return {'status': 'error', 'message': 'Файл слишком большой (максимум 6 МБ).'}, 413
+        ext = detect_image_ext(data[:16])
+        if not ext:
+            return {'status': 'error', 'message': 'Поддерживаются только PNG, JPG, GIF и WEBP.'}, 415
+        name = f"sheet_{sheet_id}_{secrets.token_hex(6)}.{ext}"
+        with open(os.path.join(SHEET_PHOTO_DIR, name), 'wb') as out:
+            out.write(data)
+        new = SHEET_PHOTO_PREFIX + name
+
+    sheet['photo'] = new
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE character_sheets SET sheet_data = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (json.dumps(sheet), sheet_id)
+        )
+    remove_sheet_photo(old)
+    return {'status': 'ok', 'url': url_for('static', filename=new) if new else ''}
+
+
+@app.errorhandler(413)
+def too_large(_e):
+    if request.path.endswith('/photo'):
+        return {'status': 'error', 'message': 'Файл слишком большой (максимум 6 МБ).'}, 413
+    flash('Файл слишком большой.', 'danger')
+    return redirect(request.referrer or url_for('index'))
 
 @app.route('/admin/delete_class/<int:class_id>')
 @admin_required
