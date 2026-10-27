@@ -1010,3 +1010,8 @@ input[type="checkbox"].exp:checked { opacity: 1; background: #fff; border-color:
 .cp-time { opacity: .65; }
 @keyframes cp-jolt { 0%, 94%, 100% { transform: none; } 95% { transform: translateX(2px); } 96.5% { transform: translateX(-2px); } 98% { transform: none; } }
 @keyframes cp-tint { 0%, 94%, 100% { background: #2447ff; } 95% { background: #ff2a7a; } 96.5% { background: #1ad3ff; } 98% { background: #2447ff; } }
+
+/* бонус мастерства и бонусы спасбросков (скейлятся от уровня) */
+.sh-prof { display: flex; align-items: baseline; gap: .5rem; margin-top: .35rem; }
+.sh-prof output { color: var(--cyan, #5ee7ff); font-weight: 700; font-size: 1.1rem; }
+.save-row .save-bonus { margin-left: auto; color: var(--cyan, #5ee7ff); font-variant-numeric: tabular-nums; }
