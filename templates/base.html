@@ -43,7 +43,8 @@
                 <a href="{{ url_for('show_backgrounds') }}" class="{{ 'active' if ep in ('show_backgrounds','add_background') }}"><i>02</i>Предыстории</a>
                 <a href="{{ url_for('sheets_list') }}" class="{{ 'active' if ep in ('sheets_list','sheet_edit','new_sheet') }}"><i>03</i>Лист</a>
                 <a href="{{ url_for('characters_list') }}" class="{{ 'active' if ep in ('characters_list','character_view') }}"><i>04</i>Персонажи</a>
-                <a href="{{ url_for('index') }}#lore"><i>05</i>Лор</a>
+                <a href="{{ url_for('breach') }}" class="{{ 'active' if ep == 'breach' }}"><i>05</i>Взлом</a>
+                <a href="{{ url_for('index') }}#lore"><i>06</i>Лор</a>
                 <a href="{{ url_for('account') }}" class="nav-account {{ 'active' if ep in ('account','admin_panel') }}">
                     <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M4 21c1-4.5 4-6 8-6s7 1.5 8 6" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
                     {% if session.get('user_id') %}Аккаунт{% else %}Войти{% endif %}

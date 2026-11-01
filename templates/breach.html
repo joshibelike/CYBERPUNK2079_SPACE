@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% block title %}Взлом — CYBERPUNK 2079{% endblock %}
+
+{% block content %}
+<header class="page-head">
+    <div class="eyebrow">Раздел 05</div>
+    <h1>Breach Protocol</h1>
+    <p class="lede">Взломайте узел Горизонт-7: введите нужные коды в буфер, пока не вышло время. Таймер запускается с первого клика.</p>
+    <div class="head-meta" aria-hidden="true"><b id="bpMeta">00</b>клик до старта</div>
+</header>
+
+<div class="panel bp" id="bp" data-logged="{{ 'true' if session.get('user_id') else 'false' }}"
+     data-result-url="{{ url_for('breach_result') }}">
+    <div class="bp-top">
+        <div class="bp-timer" id="bpTimer" role="timer" aria-live="off"><span class="lbl">Время</span><b id="bpTime">20.0</b></div>
+        <div class="bp-actions">
+            <button type="button" class="btn btn--ghost" id="bpRulesBtn">Правила</button>
+            <button type="button" class="btn" id="bpRestart">Начать заново</button>
+        </div>
+    </div>
+    <div class="bp-bar" aria-hidden="true"><i id="bpBar"></i></div>
+
+    <div class="bp-main">
+        <section class="bp-matrix-wrap" aria-label="Матрица кодов">
+            <h2 class="bp-cap">Матрица кодов</h2>
+            <div class="bp-matrix" id="bpMatrix" role="grid"></div>
+            <div class="bp-over" id="bpOver" hidden role="alert">
+                <div class="bp-over-in">
+                    <h3 id="bpOverTitle"></h3>
+                    <p id="bpOverText"></p>
+                    <button type="button" class="btn" id="bpAgain"></button>
+                </div>
+            </div>
+        </section>
+
+        <aside class="bp-side">
+            <h2 class="bp-cap">Последовательности</h2>
+            <ul class="bp-codes" id="bpCodes"></ul>
+            <h2 class="bp-cap">Буфер</h2>
+            <div class="bp-buffer" id="bpBuffer" aria-live="polite"></div>
+            <p class="hint" id="bpLogHint"></p>
+        </aside>
+    </div>
+</div>
+
+<dialog class="bp-dialog" id="bpRules">
+    <h2>Правила</h2>
+    <ul>
+        <li>Первый символ выбирается из <b>верхней строки</b> матрицы.</li>
+        <li>Дальше ходы чередуются: из <b>столбца</b> предыдущего выбора, затем из <b>строки</b>, и так далее.</li>
+        <li>Выбранные символы попадают в буфер из 4 ячеек. Одну ячейку дважды выбрать нельзя.</li>
+        <li>Таймер (20 секунд) стартует после первого клика. Вышло время — взлом провален.</li>
+        <li>Когда буфер заполнен, проверяется каждая последовательность справа: она должна целиком встретиться в буфере подряд.</li>
+        <li>Выполнены все последовательности — взлом успешен.</li>
+    </ul>
+    <form method="dialog"><button class="btn">Понятно</button></form>
+</dialog>
+
+<script>
+(function () {
+    'use strict';
+    /* ---- настройки партии ---- */
+    const SIZE = 6;                 // матрица SIZE × SIZE
+    const BUFFER = 4;               // длина буфера
+    const TIME = 20;                // секунд на партию
+    const CODE_COUNT = 3;           // сколько кодов нужно ввести
+    const SYMBOLS = 'ABCDEF1234567890'.split('');
+
+    const root = document.getElementById('bp');
+    const el = id => document.getElementById(id);
+    const rnd = n => Math.floor(Math.random() * n);
+    const pick = arr => arr[rnd(arr.length)];
+
+    let matrix, codes, buffer, used, started, over, deadline, timerId;
+
+    /* Генерация партии: сначала случайный допустимый путь «змейкой» (строка → столбец → строка …),
+       затем матрица, куда этот путь вписан, и коды как куски пути. Так головоломка всегда разрешима. */
+    function generate() {
+        const path = [];                                   // [{r, c, ch}]
+        let r = 0, c = rnd(SIZE);
+        path.push({ r, c, ch: pick(SYMBOLS) });
+        for (let i = 1; i < BUFFER; i++) {
+            if (i % 2 === 1) {                             // ход по столбцу: меняется строка
+                do { r = rnd(SIZE); } while (path.some(p => p.r === r && p.c === c));
+            } else {                                       // ход по строке: меняется столбец
+                do { c = rnd(SIZE); } while (path.some(p => p.r === r && p.c === c));
+            }
+            path.push({ r, c, ch: pick(SYMBOLS) });
+        }
+        matrix = Array.from({ length: SIZE }, () => Array.from({ length: SIZE }, () => pick(SYMBOLS)));
+        path.forEach(p => { matrix[p.r][p.c] = p.ch; });
+
+        const word = path.map(p => p.ch).join('');
+        const found = [];
+        let guard = 0;
+        while (found.length < CODE_COUNT && guard++ < 200) {
+            const len = 2 + rnd(3);                        // длина 2–4
+            const start = rnd(BUFFER - len + 1);
+            const code = word.substr(start, len);
+            if (!found.includes(code)) found.push(code);
+        }
+        codes = found.map(text => ({ text, done: false }));
+    }
+
+    /* Допустимость хода: первый — только верхняя строка; дальше строка/столбец последнего выбора по очереди. */
+    function isAllowed(r, c) {
+        if (over || used.has(r + ',' + c)) return false;
+        const n = buffer.length;
+        if (n === 0) return r === 0;
+        const last = buffer[n - 1];
+        return n % 2 === 1 ? c === last.c : r === last.r;
+    }
+
+    function render() {
+        const grid = el('bpMatrix');
+        grid.style.setProperty('--n', SIZE);
+        grid.textContent = '';
+        for (let r = 0; r < SIZE; r++) {
+            for (let c = 0; c < SIZE; c++) {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'bp-cell';
+                b.textContent = matrix[r][c];
+                b.dataset.r = r; b.dataset.c = c;
+                b.setAttribute('role', 'gridcell');
+                b.style.setProperty('--d', (r * SIZE + c) * 14 + 'ms');
+                grid.appendChild(b);
+            }
+        }
+        renderCodes();
+        refresh();
+    }
+
+    function renderCodes() {
+        const ul = el('bpCodes');
+        ul.textContent = '';
+        codes.forEach(code => {
+            const li = document.createElement('li');
+            li.className = 'bp-code' + (code.done ? ' done' : '');
+            const t = document.createElement('span'); t.className = 'bp-code-text';
+            t.textContent = code.text.split('').join(' ');
+            const m = document.createElement('span'); m.className = 'bp-tick'; m.setAttribute('aria-hidden', 'true');
+            m.textContent = code.done ? '✓' : '';
+            li.append(t, m);
+            if (code.done) li.setAttribute('aria-label', 'Выполнено: ' + code.text);
+            ul.appendChild(li);
+        });
+    }
+
+    /* Обновление буфера и подсветки допустимых ячеек */
+    function refresh() {
+        const buf = el('bpBuffer');
+        buf.textContent = '';
+        for (let i = 0; i < BUFFER; i++) {
+            const s = document.createElement('span');
+            s.className = 'bp-slot' + (buffer[i] ? ' full' : '');
+            s.textContent = buffer[i] ? buffer[i].ch : '';
+            buf.appendChild(s);
+        }
+        const n = buffer.length, last = buffer[n - 1];
+        el('bpMatrix').querySelectorAll('.bp-cell').forEach(b => {
+            const r = +b.dataset.r, c = +b.dataset.c;
+            const ok = isAllowed(r, c);
+            b.disabled = !ok;
+            b.classList.toggle('ok', ok);
+            b.classList.toggle('used', used.has(r + ',' + c));
+        });
+        el('bpMeta').textContent = String(n).padStart(2, '0');
+    }
+
+    function onPick(r, c) {
+        if (!isAllowed(r, c)) return;
+        if (!started) startTimer();
+        buffer.push({ r, c, ch: matrix[r][c] });
+        used.add(r + ',' + c);
+        checkCodes();
+        refresh();
+        if (buffer.length === BUFFER) finish(codes.every(x => x.done), 'full');
+    }
+
+    /* Проверка кодов: код выполнен, если целиком входит в буфер как подстрока */
+    function checkCodes() {
+        const word = buffer.map(b => b.ch).join('');
+        codes.forEach(code => { if (word.includes(code.text)) code.done = true; });
+        renderCodes();
+    }
+
+    /* Таймер: идёт только после первого клика, красный при < 5 с */
+    function startTimer() {
+        started = true;
+        deadline = performance.now() + TIME * 1000;
+        timerId = setInterval(tick, 50);
+        root.classList.add('running');
+    }
+    function tick() {
+        const left = Math.max(0, (deadline - performance.now()) / 1000);
+        showTime(left);
+        if (left <= 0) finish(false, 'time');
+    }
+    function showTime(left) {
+        el('bpTime').textContent = left.toFixed(1);
+        el('bpTimer').classList.toggle('low', left < 5);
+        root.classList.toggle('low', left < 5);
+        el('bpBar').style.width = (left / TIME * 100) + '%';
+    }
+
+    /* Конец партии: показать итог и отправить результат на сервер (только для вошедших игроков) */
+    function finish(success, why) {
+        if (over) return;
+        over = true;
+        clearInterval(timerId);
+        root.classList.remove('running');
+        root.classList.add(success ? 'won' : 'lost');
+        el('bpOverTitle').textContent = success ? 'Взлом успешен' : 'Взлом провален';
+        el('bpOverText').textContent = success ? 'Доступ к узлу получен.'
+            : (why === 'time' ? 'Время вышло.' : 'Буфер заполнен, но не все последовательности выполнены.');
+        el('bpAgain').textContent = success ? 'Играть снова' : 'Попробовать снова';
+        el('bpOver').hidden = false;
+        el('bpAgain').focus();
+        refresh();
+        if (root.dataset.logged === 'true') {
+            fetch(root.dataset.resultUrl, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ success })
+            }).catch(() => {});
+        }
+    }
+
+    function reset() {
+        clearInterval(timerId);
+        started = false; over = false; buffer = []; used = new Set();
+        root.classList.remove('running', 'won', 'lost', 'low');
+        el('bpOver').hidden = true;
+        showTime(TIME);
+        generate();
+        render();
+    }
+
+    el('bpMatrix').addEventListener('click', e => {
+        const b = e.target.closest('.bp-cell');
+        if (b) onPick(+b.dataset.r, +b.dataset.c);
+    });
+    el('bpRestart').addEventListener('click', reset);
+    el('bpAgain').addEventListener('click', reset);
+    el('bpRulesBtn').addEventListener('click', () => el('bpRules').showModal());
+    el('bpLogHint').textContent = root.dataset.logged === 'true'
+        ? 'Результат партии записывается в журнал.' : 'Войдите в аккаунт, чтобы результаты попадали в журнал.';
+
+    reset();
+})();
+</script>
+{% endblock %}

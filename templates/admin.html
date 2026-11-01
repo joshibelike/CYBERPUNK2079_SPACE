@@ -30,6 +30,24 @@
             </tbody>
         </table>
     </div>
-    <a href="{{ url_for('account') }}" class="btn btn--ghost">← Назад в профиль</a>
+    <div class="panel-title" style="margin-top:28px"><h2>Журнал взлома</h2></div>
+    <p class="hint" style="margin-bottom:10px">Всего партий: {{ breach_totals.total }}, пройдено: {{ breach_totals.won }}. Показаны последние 100.</p>
+    {% if breach_log %}
+    <div class="table-wrap">
+        <table class="admin-table">
+            <thead><tr><th>Игрок — результат</th><th>Когда (UTC)</th></tr></thead>
+            <tbody>
+            {% for e in breach_log %}
+            <tr>
+                <td>{{ e.username }} — {% if e.success %}<span class="badge pub">пройден</span>{% else %}<span class="badge fail">не пройден</span>{% endif %}</td>
+                <td>{{ e.created_at }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}<p class="hint">Пока никто не пробовал взломать систему.</p>{% endif %}
+
+    <a href="{{ url_for('account') }}" class="btn btn--ghost" style="margin-top:20px">← Назад в профиль</a>
 </div>
 {% endblock %}

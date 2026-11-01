@@ -140,6 +140,16 @@ def init_db():
                 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
             )
         ''')
+        # Журнал мини-игры «Взлом»: одна запись на каждую завершённую партию залогиненного игрока
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS breach_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                success INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+            )
+        ''')
         admin = conn.execute("SELECT * FROM users WHERE username = 'admin'").fetchone()
         if not admin:
             hashed = generate_password_hash('admin123')
@@ -335,13 +345,36 @@ def logout():
     return redirect(url_for('account'))
 
 
+# Мини-игра «Взлом» (Breach Protocol). Партия целиком идёт в браузере; на сервер уходит только итог.
+@app.route('/breach')
+def breach():
+    return render_template('breach.html')
+
+
+@app.route('/breach/result', methods=['POST'])
+def breach_result():
+    if 'user_id' not in session:
+        return {'status': 'guest'}  # гостям результат не пишем
+    data = request.get_json(silent=True) or {}
+    with get_db() as conn:
+        conn.execute("INSERT INTO breach_log (user_id, success) VALUES (?, ?)",
+                     (session['user_id'], 1 if data.get('success') is True else 0))
+    return {'status': 'ok'}
+
+
 # Админ-панель
 @app.route('/admin')
 @admin_required
 def admin_panel():
     with get_db() as conn:
         users = conn.execute("SELECT id, username, email, is_admin FROM users ORDER BY id").fetchall()
-    return render_template('admin.html', users=users)
+        breach_log = conn.execute('''
+            SELECT u.username, b.success, b.created_at FROM breach_log b
+            JOIN users u ON u.id = b.user_id ORDER BY b.id DESC LIMIT 100
+        ''').fetchall()
+        breach_totals = conn.execute(
+            "SELECT COALESCE(SUM(success), 0) AS won, COUNT(*) AS total FROM breach_log").fetchone()
+    return render_template('admin.html', users=users, breach_log=breach_log, breach_totals=breach_totals)
 
 
 @app.route('/admin/toggle_admin/<int:user_id>')
