@@ -31,7 +31,7 @@
         </table>
     </div>
     <div class="panel-title" style="margin-top:28px"><h2>Журнал взлома</h2></div>
-    <p class="hint" style="margin-bottom:10px">Всего партий: {{ breach_totals.total }}, пройдено: {{ breach_totals.won }}. Показаны последние 100.</p>
+    <p class="hint" style="margin-bottom:10px">Всего партий: {{ breach_totals.total }}, пройдено (полностью или на 50%): {{ breach_totals.won }}. Показаны последние 100.</p>
     {% if breach_log %}
     <div class="table-wrap">
         <table class="admin-table">
@@ -39,7 +39,7 @@
             <tbody>
             {% for e in breach_log %}
             <tr>
-                <td>{{ e.username }} — {% if e.success %}<span class="badge pub">пройден</span>{% else %}<span class="badge fail">не пройден</span>{% endif %}</td>
+                <td>{{ e.username }} — {% if e.score == 50 %}<span class="badge half">пройден на 50%</span>{% elif e.success %}<span class="badge pub">пройден</span>{% else %}<span class="badge fail">не пройден</span>{% endif %}</td>
                 <td>{{ e.created_at }}</td>
             </tr>
             {% endfor %}

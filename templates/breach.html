@@ -5,7 +5,7 @@
 <header class="page-head">
     <div class="eyebrow">Раздел 05</div>
     <h1>Breach Protocol</h1>
-    <p class="lede">Взломайте узел Горизонт-7: соберите в буфере все последовательности, пока не вышло время. Матрица скрыта, пока вы не начнёте взлом.</p>
+    <p class="lede">Взломайте узел Горизонт-7: соберите в буфере длинную и короткую последовательности, пока не вышло время. Матрица скрыта, пока вы не начнёте взлом.</p>
     <div class="head-meta" aria-hidden="true"><b id="bpMeta">00</b>в буфере</div>
 </header>
 
@@ -50,8 +50,8 @@
         <li>Дальше ходы чередуются: из <b>столбца</b> предыдущего выбора, затем из <b>строки</b>, и так далее.</li>
         <li>Матрица и последовательности скрыты до нажатия «Начать взлом». Таймер (<span data-k="time"></span> с) идёт сразу после старта. Вышло время — взлом провален.</li>
         <li>Выбранные символы попадают в буфер из <span data-k="buffer"></span> ячеек. Одну ячейку дважды выбрать нельзя.</li>
-        <li>Последовательностей не больше трёх, они длинные и могут пересекаться: их нужно уложить в буфер так, чтобы каждая встретилась целиком и подряд. Выполненные отмечаются сразу, а итог подводится, когда буфер заполнен.</li>
-        <li>Выполнены все последовательности — взлом успешен.</li>
+        <li>Последовательностей две: длинная и короткая. Каждая должна встретиться в буфере целиком и подряд. Первые буквы обеих есть в верхней строке матрицы.</li>
+        <li>Выполнена длинная — взлом успешен полностью (100%). Выполнена только короткая — взлом успешен на 50%. Ни одной — провал. Итог подводится, когда буфер заполнен или вышло время.</li>
     </ul>
     <form method="dialog"><button class="btn">Понятно</button></form>
 </dialog>
@@ -72,13 +72,15 @@
 
     let matrix, codes, buffer, used, idle, over, deadline, timerId;
 
-    /* Генерация партии: пока не получится проверенно разрешимая головоломка, строим новую. */
+    /* Генерация партии: пока не получится проверенно разрешимая головоломка, строим новую.
+       Проверяется каждая последовательность по отдельности и обе вместе. */
     function generate() {
-        do { build(); } while (!isSolvable());
+        do { build(); } while (!(isSolvable([codes[0]]) && isSolvable([codes[1]]) && isSolvable(codes)));
     }
 
     /* Построение: случайный допустимый путь «змейкой» (строка → столбец → строка …), матрица с этим путём
-       и коды как куски пути. Кодов максимум три (чаще три), они длинные, пересекаются и не вложены друг в друга. */
+       и две последовательности — куски пути: длинная (5–6 символов, полный успех) и короткая (2–3, успех на 50%).
+       Первые буквы обеих последовательностей гарантированно есть в верхней строке. */
     function build() {
         const path = [];                                   // [{r, c, ch}]
         let r = 0, c = rnd(SIZE);
@@ -95,36 +97,37 @@
         path.forEach(p => { matrix[p.r][p.c] = p.ch; });
 
         const word = path.map(p => p.ch).join('');
-        /* Начала и концы кодов строго возрастают — ни один код не вложен в другой, все они нужны.
-           Длины 3–6, хотя бы один от 5; вместе коды покрывают почти весь путь. */
-        const choose = (lo, hi, n) => {                    // n разных чисел из [lo, hi], по возрастанию
-            const pool = [];
-            for (let v = lo; v <= hi; v++) pool.push(v);
-            const out = [];
-            while (out.length < n) out.push(pool.splice(rnd(pool.length), 1)[0]);
-            return out.sort((x, y) => x - y);
-        };
-        const want = rnd(3) === 0 ? 2 : 3;                 // 2 или 3 кода
-        let found = null;
-        for (let attempt = 0; attempt < 2000 && !found; attempt++) {
-            const starts = choose(0, BUFFER - 3, want), ends = choose(3, BUFFER, want);
-            const lens = starts.map((st, i) => ends[i] - st);
-            if (lens.some(l => l < 3 || l > 6) || Math.max(...lens) < 5) continue;
-            if (starts[0] > 1 || ends[want - 1] < BUFFER - 1) continue;      // покрытие почти всего пути
-            const texts = starts.map((st, i) => word.substring(st, ends[i]));
-            if (new Set(texts).size === texts.length) found = texts;
-        }
-        codes = (found || [word.substring(0, 5), word.substring(2, 8)]).map(text => ({ text, done: false }));
+        const longLen = 5 + rnd(2), shortLen = 2 + rnd(2);
+        let longText, shortText;
+        do {
+            longText = word.substr(rnd(BUFFER - longLen + 1), longLen);
+            shortText = word.substr(rnd(BUFFER - shortLen + 1), shortLen);
+        } while (longText.includes(shortText));            // короткая не должна быть частью длинной
+        codes = [
+            { text: longText, kind: 'long', share: 100, done: false },
+            { text: shortText, kind: 'short', share: 50, done: false }
+        ];
+
+        // первые буквы последовательностей кладём в верхнюю строку, не трогая клетки пути
+        const firsts = [longText[0], shortText[0]];
+        const onPath = new Set(path.map(p => p.r + ',' + p.c));
+        const free = [];
+        for (let col = 0; col < SIZE; col++) if (!onPath.has('0,' + col)) free.push(col);
+        firsts.forEach(ch => {
+            if (matrix[0].includes(ch)) return;
+            const spot = free.findIndex(col => !firsts.includes(matrix[0][col]));
+            if (spot >= 0) matrix[0][free.splice(spot, 1)[0]] = ch;
+        });
     }
 
-    /* Проверка разрешимости: перебор всех допустимых путей «змейкой» (строка → столбец → …) длиной BUFFER;
-       разрешима, если найдётся путь, в строке которого есть все коды. Останавливается на первом найденном. */
-    function isSolvable() {
+    /* Проверка разрешимости: перебор допустимых путей «змейкой» (строка → столбец → …) длиной BUFFER;
+       true, если найдётся путь, в строке которого есть все коды из списка. Останавливается на первом найденном. */
+    function isSolvable(list) {
         const taken = new Set();
         const word = [];
         // отсечение: код, которого ещё нет в слове, должен успеть дописаться (возможно, продолжив хвост слова)
         function canFinish(w, left) {
-            return codes.every(({ text }) => {
+            return list.every(({ text }) => {
                 if (w.includes(text)) return true;
                 for (let k = Math.min(text.length - 1, w.length); k >= 0; k--) {
                     if (text.length - k <= left && (k === 0 || w.endsWith(text.slice(0, k)))) return true;
@@ -134,7 +137,7 @@
         }
         function walk(n, lastR, lastC) {
             const w = word.join('');
-            if (n === BUFFER) return codes.every(code => w.includes(code.text));
+            if (n === BUFFER) return list.every(code => w.includes(code.text));
             if (!canFinish(w, BUFFER - n)) return false;
             for (let i = 0; i < SIZE; i++) {
                 const nr = n === 0 ? 0 : (n % 2 === 1 ? i : lastR);
@@ -195,9 +198,11 @@
             li.className = 'bp-code' + (code.done ? ' done' : '');
             const t = document.createElement('span'); t.className = 'bp-code-text';
             t.textContent = code.text.split('').join(' ');
+            const k = document.createElement('span'); k.className = 'bp-kind';
+            k.textContent = (code.kind === 'long' ? 'Длинная' : 'Короткая') + ' · ' + code.share + '%';
             const m = document.createElement('span'); m.className = 'bp-tick'; m.setAttribute('aria-hidden', 'true');
             m.textContent = code.done ? '✓' : '';
-            li.append(t, m);
+            li.append(t, k, m);
             if (code.done) li.setAttribute('aria-label', 'Выполнено: ' + code.text);
             ul.appendChild(li);
         });
@@ -230,7 +235,7 @@
         used.add(r + ',' + c);
         checkCodes();
         refresh();
-        if (buffer.length === BUFFER) finish(codes.every(x => x.done), 'full');
+        if (buffer.length === BUFFER) finish('full');
     }
 
     /* Проверка кодов: код выполнен, если целиком входит в буфер как подстрока */
@@ -249,7 +254,7 @@
     function tick() {
         const left = Math.max(0, (deadline - performance.now()) / 1000);
         showTime(left);
-        if (left <= 0) finish(false, 'time');
+        if (left <= 0) finish('time');
     }
     function showTime(left) {
         el('bpTime').textContent = left.toFixed(1);
@@ -258,17 +263,23 @@
         el('bpBar').style.width = (left / TIME * 100) + '%';
     }
 
-    /* Конец партии: показать итог и отправить результат на сервер (только для вошедших игроков) */
-    function finish(success, why) {
+    /* Конец партии. Итог по выполненным кодам: длинная — взлом успешен (100%), только короткая — успешен на 50%,
+       ни одной — провал. Результат уходит на сервер (только для вошедших игроков). */
+    function finish(why) {
         if (over) return;
         over = true;
         clearInterval(timerId);
+        const longDone = codes.find(x => x.kind === 'long').done, shortDone = codes.find(x => x.kind === 'short').done;
+        const score = longDone ? 100 : (shortDone ? 50 : 0);
         root.classList.remove('running');
-        root.classList.add(success ? 'won' : 'lost');
-        el('bpOverTitle').textContent = success ? 'Взлом успешен' : 'Взлом провален';
-        el('bpOverText').textContent = success ? 'Доступ к узлу получен.'
-            : (why === 'time' ? 'Время вышло.' : 'Буфер заполнен, но не все последовательности выполнены.');
-        el('bpAgain').textContent = success ? 'Играть снова' : 'Попробовать снова';
+        root.classList.add(score === 100 ? 'won' : (score === 50 ? 'half' : 'lost'));
+        el('bpOverTitle').textContent = score === 100 ? 'Взлом успешен'
+            : (score === 50 ? 'Взлом успешен на 50%' : 'Взлом провален');
+        el('bpOverText').textContent = score === 100
+            ? (shortDone ? 'Выполнены обе последовательности. Доступ к узлу получен полностью.' : 'Выполнена длинная последовательность. Доступ к узлу получен.')
+            : score === 50 ? 'Выполнена только короткая последовательность. Доступ частичный.'
+            : (why === 'time' ? 'Время вышло, ни одна последовательность не выполнена.' : 'Буфер заполнен, ни одна последовательность не выполнена.');
+        el('bpAgain').textContent = score > 0 ? 'Играть снова' : 'Попробовать снова';
         el('bpOver').classList.remove('idle');
         el('bpOver').hidden = false;
         el('bpAgain').focus();
@@ -276,7 +287,7 @@
         if (root.dataset.logged === 'true') {
             fetch(root.dataset.resultUrl, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ success })
+                body: JSON.stringify({ score })
             }).catch(() => {});
         }
     }
@@ -285,7 +296,7 @@
     function reset() {
         clearInterval(timerId);
         idle = true; over = false; buffer = []; used = new Set();
-        root.classList.remove('running', 'won', 'lost', 'low');
+        root.classList.remove('running', 'won', 'half', 'lost', 'low');
         showTime(TIME);
         generate();
         render();

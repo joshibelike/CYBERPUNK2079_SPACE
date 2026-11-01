@@ -150,6 +150,9 @@ def init_db():
                 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
             )
         ''')
+        # Миграция: процент прохождения взлома (0 / 50 / 100); у старых записей NULL, тогда смотрим на success
+        if 'score' not in {r['name'] for r in conn.execute("PRAGMA table_info(breach_log)")}:
+            conn.execute("ALTER TABLE breach_log ADD COLUMN score INTEGER")
         admin = conn.execute("SELECT * FROM users WHERE username = 'admin'").fetchone()
         if not admin:
             hashed = generate_password_hash('admin123')
@@ -356,9 +359,12 @@ def breach_result():
     if 'user_id' not in session:
         return {'status': 'guest'}  # гостям результат не пишем
     data = request.get_json(silent=True) or {}
+    score = data.get('score')
+    if score not in (0, 50, 100):      # 100 — выполнена длинная, 50 — только короткая, 0 — провал
+        score = 0
     with get_db() as conn:
-        conn.execute("INSERT INTO breach_log (user_id, success) VALUES (?, ?)",
-                     (session['user_id'], 1 if data.get('success') is True else 0))
+        conn.execute("INSERT INTO breach_log (user_id, success, score) VALUES (?, ?, ?)",
+                     (session['user_id'], 1 if score > 0 else 0, score))
     return {'status': 'ok'}
 
 
@@ -369,7 +375,7 @@ def admin_panel():
     with get_db() as conn:
         users = conn.execute("SELECT id, username, email, is_admin FROM users ORDER BY id").fetchall()
         breach_log = conn.execute('''
-            SELECT u.username, b.success, b.created_at FROM breach_log b
+            SELECT u.username, b.success, COALESCE(b.score, b.success * 100) AS score, b.created_at FROM breach_log b
             JOIN users u ON u.id = b.user_id ORDER BY b.id DESC LIMIT 100
         ''').fetchall()
         breach_totals = conn.execute(

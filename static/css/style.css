@@ -1096,3 +1096,9 @@ input[type="checkbox"].exp:checked { opacity: 1; background: #fff; border-color:
     .bp-matrix-wrap { justify-self: center; }
 }
 @media (prefers-reduced-motion: reduce) { .bp-cell, .bp-slot, .bp-over, .bp-timer b { animation: none !important; } }
+
+/* взлом: две последовательности и частичный успех */
+.bp-kind { margin-left: auto; font-size: .7rem; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+.bp-code.done .bp-kind { color: var(--ok); }
+.bp.half .bp-over h3 { color: var(--glow); text-shadow: 0 0 22px rgba(77, 141, 255, .8); }
+.badge.half { color: var(--glow); border-color: var(--glow); }
