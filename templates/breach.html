@@ -5,7 +5,7 @@
 <header class="page-head">
     <div class="eyebrow">Раздел 05</div>
     <h1>Breach Protocol</h1>
-    <p class="lede">Взломайте узел Горизонт-7: соберите в буфере последовательности (одну длинную и две короткие), пока не вышло время. Матрица скрыта, пока вы не начнёте взлом.</p>
+    <p class="lede">Взломайте узел Горизонт-7: соберите в буфере последовательности (одну длинную из пяти символов и две короткие), пока не вышло время. Матрица скрыта, пока вы не начнёте взлом.</p>
     <div class="head-meta" aria-hidden="true"><b id="bpMeta">00</b>в буфере</div>
 </header>
 
@@ -50,7 +50,7 @@
         <li>Дальше ходы чередуются: из <b>столбца</b> предыдущего выбора, затем из <b>строки</b>, и так далее.</li>
         <li>Матрица и последовательности скрыты до нажатия «Начать взлом». Таймер (<span data-k="time"></span> с) идёт сразу после старта. Вышло время — взлом провален.</li>
         <li>Выбранные символы попадают в буфер из <span data-k="buffer"></span> ячеек. Одну ячейку дважды выбрать нельзя.</li>
-        <li>Последовательностей три: одна длинная и две короткие. Каждая должна встретиться в буфере целиком и подряд. Первые буквы всех трёх есть в верхней строке матрицы.</li>
+        <li>Последовательностей три: одна длинная (5 символов) и две короткие (2 символа). Каждая должна встретиться в буфере целиком и подряд. Первая буква каждой есть в верхней строке, вторая — в столбце выбранной первой, третья — в строке второй, и так далее.</li>
         <li>Выполнена длинная — взлом успешен (100%). Каждая короткая даёт 50%: одна — «успешен на 50%», обе — 100%. Ни одной — провал. Итог подводится, когда буфер заполнен или вышло время.</li>
     </ul>
     <form method="dialog"><button class="btn">Понятно</button></form>
@@ -73,20 +73,22 @@
     let matrix, codes, buffer, used, idle, over, deadline, timerId;
 
     /* Генерация партии: пока не получится проверенно разрешимая головоломка, строим новую.
-       Проверяется каждая последовательность по отдельности и все три вместе. */
+       Каждая последовательность проверяется перебором по правилам игры отдельно. */
     function generate() {
-        do { build(); } while (!(codes.length === 3 && codes.every(code => matrix[0].includes(code.text[0]))
-                                 && codes.every(code => isSolvable([code])) && isSolvable(codes)));
+        do { build(); } while (!(codes.length === 3 && codes.every(code => isSolvable([code]))));
     }
 
-    /* Построение: случайный допустимый путь «змейкой» (строка → столбец → строка …), матрица с этим путём
-       и три последовательности — куски пути: одна длинная (4–5 символов, даёт 100%) и две короткие
-       (по 2 символа, каждая даёт 50%). Первые буквы всех трёх гарантированно есть в верхней строке. */
+    /* Построение. Длинная последовательность (5 символов, даёт 100%) — это и есть путь «змейкой»:
+       1-я буква в верхней строке, 2-я в её столбце, 3-я в строке 2-й, 4-я в столбце 3-й, 5-я в строке 4-й.
+       Он вписывается в матрицу целиком, поэтому длинную всегда можно набрать с самого первого клика.
+       Две короткие (по 2 символа, по 50%) — отдельные цепочки: буква в верхней строке и вторая под ней
+       в том же столбце. Все клетки цепочек защищены друг от друга, остальное заполняется случайно. */
     function build() {
+        const LONG = 5;
         const path = [];                                   // [{r, c, ch}]
         let r = 0, c = rnd(SIZE);
         path.push({ r, c, ch: pick(SYMBOLS) });
-        for (let i = 1; i < BUFFER; i++) {
+        for (let i = 1; i < LONG; i++) {
             if (i % 2 === 1) {                             // ход по столбцу: меняется строка
                 do { r = rnd(SIZE); } while (path.some(p => p.r === r && p.c === c));
             } else {                                       // ход по строке: меняется столбец
@@ -95,30 +97,27 @@
             path.push({ r, c, ch: pick(SYMBOLS) });
         }
         matrix = Array.from({ length: SIZE }, () => Array.from({ length: SIZE }, () => pick(SYMBOLS)));
-        path.forEach(p => { matrix[p.r][p.c] = p.ch; });
+        const locked = new Set();
+        path.forEach(p => { matrix[p.r][p.c] = p.ch; locked.add(p.r + ',' + p.c); });
 
-        const word = path.map(p => p.ch).join('');
-        const longLen = 4 + rnd(2);
-        const longText = word.substr(rnd(BUFFER - longLen + 1), longLen);
-        const shorts = [];
-        for (let guard = 0; shorts.length < 2 && guard < 200; guard++) {
-            const text = word.substr(rnd(BUFFER - 1), 2);
+        const longText = path.map(p => p.ch).join('');
+        codes = [{ text: longText, kind: 'long', share: 100, done: false }];
+
+        for (let k = 0; k < 2; k++) {
+            const cols = [], rows = [];
+            for (let col = 0; col < SIZE; col++) if (!locked.has('0,' + col)) cols.push(col);
+            if (!cols.length) break;
+            const col = pick(cols);
+            for (let row = 1; row < SIZE; row++) if (!locked.has(row + ',' + col)) rows.push(row);
+            if (!rows.length) break;
+            const row = pick(rows);
+            const text = pick(SYMBOLS) + pick(SYMBOLS);
             // короткие различны и не лежат внутри длинной, иначе их выполнение было бы «бесплатным»
-            if (!longText.includes(text) && !shorts.includes(text)) shorts.push(text);
+            if (longText.includes(text) || codes.some(x => x.text === text)) { k--; continue; }
+            matrix[0][col] = text[0]; matrix[row][col] = text[1];
+            locked.add('0,' + col); locked.add(row + ',' + col);
+            codes.push({ text, kind: 'short', share: 50, done: false });
         }
-        codes = [{ text: longText, kind: 'long', share: 100, done: false }]
-            .concat(shorts.map(text => ({ text, kind: 'short', share: 50, done: false })));
-
-        // первые буквы последовательностей кладём в верхнюю строку, не трогая клетки пути
-        const firsts = codes.map(x => x.text[0]);
-        const onPath = new Set(path.map(p => p.r + ',' + p.c));
-        const free = [];
-        for (let col = 0; col < SIZE; col++) if (!onPath.has('0,' + col)) free.push(col);
-        firsts.forEach(ch => {
-            if (matrix[0].includes(ch)) return;
-            const spot = free.findIndex(col => !firsts.includes(matrix[0][col]));
-            if (spot >= 0) matrix[0][free.splice(spot, 1)[0]] = ch;
-        });
     }
 
     /* Проверка разрешимости: перебор допустимых путей «змейкой» (строка → столбец → …) длиной BUFFER;
