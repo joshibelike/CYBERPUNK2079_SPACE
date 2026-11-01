@@ -5,14 +5,14 @@
 <header class="page-head">
     <div class="eyebrow">Раздел 05</div>
     <h1>Breach Protocol</h1>
-    <p class="lede">Взломайте узел Горизонт-7: введите нужные коды в буфер, пока не вышло время. Таймер запускается с первого клика.</p>
-    <div class="head-meta" aria-hidden="true"><b id="bpMeta">00</b>клик до старта</div>
+    <p class="lede">Взломайте узел Горизонт-7: соберите в буфере все последовательности, пока не вышло время. Матрица скрыта, пока вы не начнёте взлом.</p>
+    <div class="head-meta" aria-hidden="true"><b id="bpMeta">00</b>в буфере</div>
 </header>
 
 <div class="panel bp" id="bp" data-logged="{{ 'true' if session.get('user_id') else 'false' }}"
      data-result-url="{{ url_for('breach_result') }}">
     <div class="bp-top">
-        <div class="bp-timer" id="bpTimer" role="timer" aria-live="off"><span class="lbl">Время</span><b id="bpTime">20.0</b></div>
+        <div class="bp-timer" id="bpTimer" role="timer" aria-live="off"><span class="lbl">Время</span><b id="bpTime">--</b></div>
         <div class="bp-actions">
             <button type="button" class="btn btn--ghost" id="bpRulesBtn">Правила</button>
             <button type="button" class="btn" id="bpRestart">Начать заново</button>
@@ -48,9 +48,9 @@
     <ul>
         <li>Первый символ выбирается из <b>верхней строки</b> матрицы.</li>
         <li>Дальше ходы чередуются: из <b>столбца</b> предыдущего выбора, затем из <b>строки</b>, и так далее.</li>
-        <li>Выбранные символы попадают в буфер из 4 ячеек. Одну ячейку дважды выбрать нельзя.</li>
-        <li>Таймер (20 секунд) стартует после первого клика. Вышло время — взлом провален.</li>
-        <li>Когда буфер заполнен, проверяется каждая последовательность справа: она должна целиком встретиться в буфере подряд.</li>
+        <li>Матрица и последовательности скрыты до нажатия «Начать взлом». Таймер (<span data-k="time"></span> с) идёт сразу после старта. Вышло время — взлом провален.</li>
+        <li>Выбранные символы попадают в буфер из <span data-k="buffer"></span> ячеек. Одну ячейку дважды выбрать нельзя.</li>
+        <li>Последовательности длинные и пересекаются: их нужно уложить в буфер так, чтобы каждая встретилась целиком и подряд. Выполненные отмечаются сразу, а итог подводится, когда буфер заполнен.</li>
         <li>Выполнены все последовательности — взлом успешен.</li>
     </ul>
     <form method="dialog"><button class="btn">Понятно</button></form>
@@ -60,10 +60,9 @@
 (function () {
     'use strict';
     /* ---- настройки партии ---- */
-    const SIZE = 6;                 // матрица SIZE × SIZE
-    const BUFFER = 4;               // длина буфера
-    const TIME = 20;                // секунд на партию
-    const CODE_COUNT = 3;           // сколько кодов нужно ввести
+    const SIZE = 7;                 // матрица SIZE × SIZE
+    const BUFFER = 8;               // длина буфера
+    const TIME = 35;                // секунд на партию (идут с момента нажатия «Начать взлом»)
     const SYMBOLS = 'ABCDEF1234567890'.split('');
 
     const root = document.getElementById('bp');
@@ -71,10 +70,11 @@
     const rnd = n => Math.floor(Math.random() * n);
     const pick = arr => arr[rnd(arr.length)];
 
-    let matrix, codes, buffer, used, started, over, deadline, timerId;
+    let matrix, codes, buffer, used, idle, over, deadline, timerId;
 
     /* Генерация партии: сначала случайный допустимый путь «змейкой» (строка → столбец → строка …),
-       затем матрица, куда этот путь вписан, и коды как куски пути. Так головоломка всегда разрешима. */
+       затем матрица, куда этот путь вписан, и коды как куски пути. Так головоломка всегда разрешима,
+       но кодов 4–5, они длинные (до 6 символов), пересекаются и покрывают почти весь путь. */
     function generate() {
         const path = [];                                   // [{r, c, ch}]
         let r = 0, c = rnd(SIZE);
@@ -91,20 +91,32 @@
         path.forEach(p => { matrix[p.r][p.c] = p.ch; });
 
         const word = path.map(p => p.ch).join('');
-        const found = [];
-        let guard = 0;
-        while (found.length < CODE_COUNT && guard++ < 200) {
-            const len = 2 + rnd(3);                        // длина 2–4
-            const start = rnd(BUFFER - len + 1);
-            const code = word.substr(start, len);
-            if (!found.includes(code)) found.push(code);
+        /* Коды — куски пути. Начала и концы у них строго возрастают, поэтому ни один код не вложен в другой,
+           и все они нужны. Длины 2–6, обязательно есть длинный (от 5; при пяти кодах от 4), вместе покрывают почти весь путь. */
+        const choose = (lo, hi, n) => {                    // n разных чисел из [lo, hi], по возрастанию
+            const pool = [];
+            for (let v = lo; v <= hi; v++) pool.push(v);
+            const out = [];
+            while (out.length < n) out.push(pool.splice(rnd(pool.length), 1)[0]);
+            return out.sort((x, y) => x - y);
+        };
+        let best = null;
+        const want = 4 + rnd(2);                           // 4 или 5 кодов
+        for (let attempt = 0; attempt < 2000 && !best; attempt++) {
+            const starts = choose(0, BUFFER - 2, want), ends = choose(2, BUFFER, want);
+            const lens = starts.map((st, i) => ends[i] - st);
+            if (lens.some(l => l < 2 || l > 6) || Math.max(...lens) < (want === 5 ? 4 : 5)) continue;
+            if (starts[0] > 1 || ends[want - 1] < BUFFER - 1) continue;      // покрытие почти всего пути
+            best = starts.map((st, i) => word.substring(st, ends[i]));
+            if (new Set(best).size !== best.length) best = null;
         }
-        codes = found.map(text => ({ text, done: false }));
+        codes = (best || [word.substring(0, 6), word.substring(2, 8), word.substring(1, 5), word.substring(3, 7)])
+            .map(text => ({ text, done: false }));
     }
 
     /* Допустимость хода: первый — только верхняя строка; дальше строка/столбец последнего выбора по очереди. */
     function isAllowed(r, c) {
-        if (over || used.has(r + ',' + c)) return false;
+        if (idle || over || used.has(r + ',' + c)) return false;
         const n = buffer.length;
         if (n === 0) return r === 0;
         const last = buffer[n - 1];
@@ -120,7 +132,7 @@
                 const b = document.createElement('button');
                 b.type = 'button';
                 b.className = 'bp-cell';
-                b.textContent = matrix[r][c];
+                b.textContent = idle ? '▒' : matrix[r][c];   // до старта символы не попадают в страницу
                 b.dataset.r = r; b.dataset.c = c;
                 b.setAttribute('role', 'gridcell');
                 b.style.setProperty('--d', (r * SIZE + c) * 14 + 'ms');
@@ -134,6 +146,13 @@
     function renderCodes() {
         const ul = el('bpCodes');
         ul.textContent = '';
+        if (idle) {                                        // до старта последовательности скрыты
+            const li = document.createElement('li');
+            li.className = 'bp-code locked';
+            li.textContent = '▒ ▒ ▒ ▒  данные зашифрованы';
+            ul.appendChild(li);
+            return;
+        }
         codes.forEach(code => {
             const li = document.createElement('li');
             li.className = 'bp-code' + (code.done ? ' done' : '');
@@ -169,8 +188,7 @@
     }
 
     function onPick(r, c) {
-        if (!isAllowed(r, c)) return;
-        if (!started) startTimer();
+        if (idle || !isAllowed(r, c)) return;
         buffer.push({ r, c, ch: matrix[r][c] });
         used.add(r + ',' + c);
         checkCodes();
@@ -185,9 +203,8 @@
         renderCodes();
     }
 
-    /* Таймер: идёт только после первого клика, красный при < 5 с */
+    /* Таймер: запускается кнопкой «Начать взлом», красный при < 5 с */
     function startTimer() {
-        started = true;
         deadline = performance.now() + TIME * 1000;
         timerId = setInterval(tick, 50);
         root.classList.add('running');
@@ -215,6 +232,7 @@
         el('bpOverText').textContent = success ? 'Доступ к узлу получен.'
             : (why === 'time' ? 'Время вышло.' : 'Буфер заполнен, но не все последовательности выполнены.');
         el('bpAgain').textContent = success ? 'Играть снова' : 'Попробовать снова';
+        el('bpOver').classList.remove('idle');
         el('bpOver').hidden = false;
         el('bpAgain').focus();
         refresh();
@@ -226,14 +244,27 @@
         }
     }
 
+    /* Экран перед взломом: поле скрыто, таймер не идёт */
     function reset() {
         clearInterval(timerId);
-        started = false; over = false; buffer = []; used = new Set();
+        idle = true; over = false; buffer = []; used = new Set();
         root.classList.remove('running', 'won', 'lost', 'low');
-        el('bpOver').hidden = true;
         showTime(TIME);
         generate();
         render();
+        el('bpOverTitle').textContent = 'Узел защищён';
+        el('bpOverText').textContent = 'Матрица и последовательности скрыты. Таймер пойдёт сразу после старта.';
+        el('bpAgain').textContent = 'Начать взлом';
+        el('bpOver').classList.add('idle');
+        el('bpOver').hidden = false;
+    }
+
+    /* Старт: показать поле и сразу запустить отсчёт */
+    function start() {
+        idle = false;
+        el('bpOver').hidden = true;
+        render();
+        startTimer();
     }
 
     el('bpMatrix').addEventListener('click', e => {
@@ -241,7 +272,9 @@
         if (b) onPick(+b.dataset.r, +b.dataset.c);
     });
     el('bpRestart').addEventListener('click', reset);
-    el('bpAgain').addEventListener('click', reset);
+    el('bpAgain').addEventListener('click', () => (idle ? start() : reset()));
+    document.querySelectorAll('[data-k="time"]').forEach(n => { n.textContent = TIME; });
+    document.querySelectorAll('[data-k="buffer"]').forEach(n => { n.textContent = BUFFER; });
     el('bpRulesBtn').addEventListener('click', () => el('bpRules').showModal());
     el('bpLogHint').textContent = root.dataset.logged === 'true'
         ? 'Результат партии записывается в журнал.' : 'Войдите в аккаунт, чтобы результаты попадали в журнал.';
