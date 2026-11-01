@@ -5,7 +5,7 @@
 <header class="page-head">
     <div class="eyebrow">Раздел 05</div>
     <h1>Breach Protocol</h1>
-    <p class="lede">Взломайте узел Горизонт-7: соберите в буфере длинную и короткую последовательности, пока не вышло время. Матрица скрыта, пока вы не начнёте взлом.</p>
+    <p class="lede">Взломайте узел Горизонт-7: соберите в буфере последовательности (одну длинную и две короткие), пока не вышло время. Матрица скрыта, пока вы не начнёте взлом.</p>
     <div class="head-meta" aria-hidden="true"><b id="bpMeta">00</b>в буфере</div>
 </header>
 
@@ -50,8 +50,8 @@
         <li>Дальше ходы чередуются: из <b>столбца</b> предыдущего выбора, затем из <b>строки</b>, и так далее.</li>
         <li>Матрица и последовательности скрыты до нажатия «Начать взлом». Таймер (<span data-k="time"></span> с) идёт сразу после старта. Вышло время — взлом провален.</li>
         <li>Выбранные символы попадают в буфер из <span data-k="buffer"></span> ячеек. Одну ячейку дважды выбрать нельзя.</li>
-        <li>Последовательностей две: длинная и короткая. Каждая должна встретиться в буфере целиком и подряд. Первые буквы обеих есть в верхней строке матрицы.</li>
-        <li>Выполнена длинная — взлом успешен полностью (100%). Выполнена только короткая — взлом успешен на 50%. Ни одной — провал. Итог подводится, когда буфер заполнен или вышло время.</li>
+        <li>Последовательностей три: одна длинная и две короткие. Каждая должна встретиться в буфере целиком и подряд. Первые буквы всех трёх есть в верхней строке матрицы.</li>
+        <li>Выполнена длинная — взлом успешен (100%). Каждая короткая даёт 50%: одна — «успешен на 50%», обе — 100%. Ни одной — провал. Итог подводится, когда буфер заполнен или вышло время.</li>
     </ul>
     <form method="dialog"><button class="btn">Понятно</button></form>
 </dialog>
@@ -60,9 +60,9 @@
 (function () {
     'use strict';
     /* ---- настройки партии ---- */
-    const SIZE = 7;                 // матрица SIZE × SIZE
-    const BUFFER = 8;               // длина буфера
-    const TIME = 35;                // секунд на партию (идут с момента нажатия «Начать взлом»)
+    const SIZE = 6;                 // матрица SIZE × SIZE
+    const BUFFER = 7;               // длина буфера
+    const TIME = 45;                // секунд на партию (идут с момента нажатия «Начать взлом»)
     const SYMBOLS = 'ABCDEF1234567890'.split('');
 
     const root = document.getElementById('bp');
@@ -73,14 +73,15 @@
     let matrix, codes, buffer, used, idle, over, deadline, timerId;
 
     /* Генерация партии: пока не получится проверенно разрешимая головоломка, строим новую.
-       Проверяется каждая последовательность по отдельности и обе вместе. */
+       Проверяется каждая последовательность по отдельности и все три вместе. */
     function generate() {
-        do { build(); } while (!(isSolvable([codes[0]]) && isSolvable([codes[1]]) && isSolvable(codes)));
+        do { build(); } while (!(codes.length === 3 && codes.every(code => matrix[0].includes(code.text[0]))
+                                 && codes.every(code => isSolvable([code])) && isSolvable(codes)));
     }
 
     /* Построение: случайный допустимый путь «змейкой» (строка → столбец → строка …), матрица с этим путём
-       и две последовательности — куски пути: длинная (5–6 символов, полный успех) и короткая (2–3, успех на 50%).
-       Первые буквы обеих последовательностей гарантированно есть в верхней строке. */
+       и три последовательности — куски пути: одна длинная (4–5 символов, даёт 100%) и две короткие
+       (по 2 символа, каждая даёт 50%). Первые буквы всех трёх гарантированно есть в верхней строке. */
     function build() {
         const path = [];                                   // [{r, c, ch}]
         let r = 0, c = rnd(SIZE);
@@ -97,19 +98,19 @@
         path.forEach(p => { matrix[p.r][p.c] = p.ch; });
 
         const word = path.map(p => p.ch).join('');
-        const longLen = 5 + rnd(2), shortLen = 2 + rnd(2);
-        let longText, shortText;
-        do {
-            longText = word.substr(rnd(BUFFER - longLen + 1), longLen);
-            shortText = word.substr(rnd(BUFFER - shortLen + 1), shortLen);
-        } while (longText.includes(shortText));            // короткая не должна быть частью длинной
-        codes = [
-            { text: longText, kind: 'long', share: 100, done: false },
-            { text: shortText, kind: 'short', share: 50, done: false }
-        ];
+        const longLen = 4 + rnd(2);
+        const longText = word.substr(rnd(BUFFER - longLen + 1), longLen);
+        const shorts = [];
+        for (let guard = 0; shorts.length < 2 && guard < 200; guard++) {
+            const text = word.substr(rnd(BUFFER - 1), 2);
+            // короткие различны и не лежат внутри длинной, иначе их выполнение было бы «бесплатным»
+            if (!longText.includes(text) && !shorts.includes(text)) shorts.push(text);
+        }
+        codes = [{ text: longText, kind: 'long', share: 100, done: false }]
+            .concat(shorts.map(text => ({ text, kind: 'short', share: 50, done: false })));
 
         // первые буквы последовательностей кладём в верхнюю строку, не трогая клетки пути
-        const firsts = [longText[0], shortText[0]];
+        const firsts = codes.map(x => x.text[0]);
         const onPath = new Set(path.map(p => p.r + ',' + p.c));
         const free = [];
         for (let col = 0; col < SIZE; col++) if (!onPath.has('0,' + col)) free.push(col);
@@ -263,21 +264,23 @@
         el('bpBar').style.width = (left / TIME * 100) + '%';
     }
 
-    /* Конец партии. Итог по выполненным кодам: длинная — взлом успешен (100%), только короткая — успешен на 50%,
-       ни одной — провал. Результат уходит на сервер (только для вошедших игроков). */
+    /* Конец партии. Длинная последовательность даёт 100% (взлом успешен), каждая короткая — 50%:
+       одна короткая — «успешен на 50%», две короткие — 100%, ни одной — провал.
+       Результат уходит на сервер (только для вошедших игроков). */
     function finish(why) {
         if (over) return;
         over = true;
         clearInterval(timerId);
-        const longDone = codes.find(x => x.kind === 'long').done, shortDone = codes.find(x => x.kind === 'short').done;
-        const score = longDone ? 100 : (shortDone ? 50 : 0);
+        const longDone = codes.find(x => x.kind === 'long').done;
+        const shortsDone = codes.filter(x => x.kind === 'short' && x.done).length;
+        const score = longDone ? 100 : Math.min(100, shortsDone * 50);
         root.classList.remove('running');
         root.classList.add(score === 100 ? 'won' : (score === 50 ? 'half' : 'lost'));
         el('bpOverTitle').textContent = score === 100 ? 'Взлом успешен'
             : (score === 50 ? 'Взлом успешен на 50%' : 'Взлом провален');
         el('bpOverText').textContent = score === 100
-            ? (shortDone ? 'Выполнены обе последовательности. Доступ к узлу получен полностью.' : 'Выполнена длинная последовательность. Доступ к узлу получен.')
-            : score === 50 ? 'Выполнена только короткая последовательность. Доступ частичный.'
+            ? (longDone ? 'Выполнена длинная последовательность. Доступ к узлу получен.' : 'Выполнены обе короткие последовательности. Доступ к узлу получен.')
+            : score === 50 ? 'Выполнена только одна короткая последовательность. Доступ частичный.'
             : (why === 'time' ? 'Время вышло, ни одна последовательность не выполнена.' : 'Буфер заполнен, ни одна последовательность не выполнена.');
         el('bpAgain').textContent = score > 0 ? 'Играть снова' : 'Попробовать снова';
         el('bpOver').classList.remove('idle');
