@@ -50,7 +50,7 @@
         <li>Дальше ходы чередуются: из <b>столбца</b> предыдущего выбора, затем из <b>строки</b>, и так далее.</li>
         <li>Матрица и последовательности скрыты до нажатия «Начать взлом». Таймер (<span data-k="time"></span> с) идёт сразу после старта. Вышло время — взлом провален.</li>
         <li>Выбранные символы попадают в буфер из <span data-k="buffer"></span> ячеек. Одну ячейку дважды выбрать нельзя.</li>
-        <li>Последовательности длинные и пересекаются: их нужно уложить в буфер так, чтобы каждая встретилась целиком и подряд. Выполненные отмечаются сразу, а итог подводится, когда буфер заполнен.</li>
+        <li>Последовательностей не больше трёх, они длинные и могут пересекаться: их нужно уложить в буфер так, чтобы каждая встретилась целиком и подряд. Выполненные отмечаются сразу, а итог подводится, когда буфер заполнен.</li>
         <li>Выполнены все последовательности — взлом успешен.</li>
     </ul>
     <form method="dialog"><button class="btn">Понятно</button></form>
@@ -72,10 +72,14 @@
 
     let matrix, codes, buffer, used, idle, over, deadline, timerId;
 
-    /* Генерация партии: сначала случайный допустимый путь «змейкой» (строка → столбец → строка …),
-       затем матрица, куда этот путь вписан, и коды как куски пути. Так головоломка всегда разрешима,
-       но кодов 4–5, они длинные (до 6 символов), пересекаются и покрывают почти весь путь. */
+    /* Генерация партии: пока не получится проверенно разрешимая головоломка, строим новую. */
     function generate() {
+        do { build(); } while (!isSolvable());
+    }
+
+    /* Построение: случайный допустимый путь «змейкой» (строка → столбец → строка …), матрица с этим путём
+       и коды как куски пути. Кодов максимум три (чаще три), они длинные, пересекаются и не вложены друг в друга. */
+    function build() {
         const path = [];                                   // [{r, c, ch}]
         let r = 0, c = rnd(SIZE);
         path.push({ r, c, ch: pick(SYMBOLS) });
@@ -91,8 +95,8 @@
         path.forEach(p => { matrix[p.r][p.c] = p.ch; });
 
         const word = path.map(p => p.ch).join('');
-        /* Коды — куски пути. Начала и концы у них строго возрастают, поэтому ни один код не вложен в другой,
-           и все они нужны. Длины 2–6, обязательно есть длинный (от 5; при пяти кодах от 4), вместе покрывают почти весь путь. */
+        /* Начала и концы кодов строго возрастают — ни один код не вложен в другой, все они нужны.
+           Длины 3–6, хотя бы один от 5; вместе коды покрывают почти весь путь. */
         const choose = (lo, hi, n) => {                    // n разных чисел из [lo, hi], по возрастанию
             const pool = [];
             for (let v = lo; v <= hi; v++) pool.push(v);
@@ -100,18 +104,51 @@
             while (out.length < n) out.push(pool.splice(rnd(pool.length), 1)[0]);
             return out.sort((x, y) => x - y);
         };
-        let best = null;
-        const want = 4 + rnd(2);                           // 4 или 5 кодов
-        for (let attempt = 0; attempt < 2000 && !best; attempt++) {
-            const starts = choose(0, BUFFER - 2, want), ends = choose(2, BUFFER, want);
+        const want = rnd(3) === 0 ? 2 : 3;                 // 2 или 3 кода
+        let found = null;
+        for (let attempt = 0; attempt < 2000 && !found; attempt++) {
+            const starts = choose(0, BUFFER - 3, want), ends = choose(3, BUFFER, want);
             const lens = starts.map((st, i) => ends[i] - st);
-            if (lens.some(l => l < 2 || l > 6) || Math.max(...lens) < (want === 5 ? 4 : 5)) continue;
+            if (lens.some(l => l < 3 || l > 6) || Math.max(...lens) < 5) continue;
             if (starts[0] > 1 || ends[want - 1] < BUFFER - 1) continue;      // покрытие почти всего пути
-            best = starts.map((st, i) => word.substring(st, ends[i]));
-            if (new Set(best).size !== best.length) best = null;
+            const texts = starts.map((st, i) => word.substring(st, ends[i]));
+            if (new Set(texts).size === texts.length) found = texts;
         }
-        codes = (best || [word.substring(0, 6), word.substring(2, 8), word.substring(1, 5), word.substring(3, 7)])
-            .map(text => ({ text, done: false }));
+        codes = (found || [word.substring(0, 5), word.substring(2, 8)]).map(text => ({ text, done: false }));
+    }
+
+    /* Проверка разрешимости: перебор всех допустимых путей «змейкой» (строка → столбец → …) длиной BUFFER;
+       разрешима, если найдётся путь, в строке которого есть все коды. Останавливается на первом найденном. */
+    function isSolvable() {
+        const taken = new Set();
+        const word = [];
+        // отсечение: код, которого ещё нет в слове, должен успеть дописаться (возможно, продолжив хвост слова)
+        function canFinish(w, left) {
+            return codes.every(({ text }) => {
+                if (w.includes(text)) return true;
+                for (let k = Math.min(text.length - 1, w.length); k >= 0; k--) {
+                    if (text.length - k <= left && (k === 0 || w.endsWith(text.slice(0, k)))) return true;
+                }
+                return false;
+            });
+        }
+        function walk(n, lastR, lastC) {
+            const w = word.join('');
+            if (n === BUFFER) return codes.every(code => w.includes(code.text));
+            if (!canFinish(w, BUFFER - n)) return false;
+            for (let i = 0; i < SIZE; i++) {
+                const nr = n === 0 ? 0 : (n % 2 === 1 ? i : lastR);
+                const nc = n === 0 ? i : (n % 2 === 1 ? lastC : i);
+                const key = nr + ',' + nc;
+                if (taken.has(key)) continue;
+                taken.add(key); word.push(matrix[nr][nc]);
+                const ok = walk(n + 1, nr, nc);
+                taken.delete(key); word.pop();
+                if (ok) return true;
+            }
+            return false;
+        }
+        return walk(0, 0, 0);
     }
 
     /* Допустимость хода: первый — только верхняя строка; дальше строка/столбец последнего выбора по очереди. */
