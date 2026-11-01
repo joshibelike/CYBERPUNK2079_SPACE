@@ -1017,7 +1017,7 @@ input[type="checkbox"].exp:checked { opacity: 1; background: #fff; border-color:
 .save-row .save-bonus { margin-left: auto; color: var(--cyan, #5ee7ff); font-variant-numeric: tabular-nums; }
 
 /* ===== Взлом (Breach Protocol) ===== */
-.bp { --y: #7db0ff; --bp-cell: clamp(36px, 6.2vw, 64px); position: relative; overflow: hidden; }
+.bp { --y: #7db0ff; --bp-cell: clamp(30px, 4.8vw, 54px); position: relative; overflow: hidden; }
 .bp::before { /* сканлайны */
     content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
     background: repeating-linear-gradient(0deg, rgba(125, 176, 255, .045) 0 1px, transparent 1px 3px);
@@ -1044,7 +1044,7 @@ input[type="checkbox"].exp:checked { opacity: 1; background: #fff; border-color:
 .bp-side .bp-cap:not(:first-child) { margin-top: 26px; }
 
 .bp-matrix-wrap { position: relative; }
-.bp-matrix { display: grid; grid-template-columns: repeat(var(--n), var(--bp-cell)); gap: 6px; padding: 10px; border: 1px solid var(--line-2); background: rgba(2, 5, 13, .55); box-shadow: inset 0 0 30px rgba(47, 107, 255, .12), 0 0 24px rgba(47, 107, 255, .15); }
+.bp-matrix { display: grid; grid-template-columns: repeat(var(--n), var(--bp-cell)); gap: 5px; padding: 8px; border: 1px solid var(--line-2); background: rgba(2, 5, 13, .55); box-shadow: inset 0 0 30px rgba(47, 107, 255, .12), 0 0 24px rgba(47, 107, 255, .15); }
 .bp-cell {
     width: var(--bp-cell); height: var(--bp-cell); display: grid; place-items: center;
     font-family: var(--font-mono); font-size: calc(var(--bp-cell) * .42); color: var(--faint);
@@ -1092,7 +1092,8 @@ input[type="checkbox"].exp:checked { opacity: 1; background: #fff; border-color:
 @keyframes bp-blink { 50% { opacity: .45; } }
 @media (max-width: 800px) {
     .bp-main { grid-template-columns: 1fr; }
-    .bp { --bp-cell: min(12vw, 56px); }
+    .bp { --bp-cell: min(8.2vw, 44px); }
+    .bp-matrix { gap: 3px; padding: 6px; }
     .bp-matrix-wrap { justify-self: center; }
 }
 @media (prefers-reduced-motion: reduce) { .bp-cell, .bp-slot, .bp-over, .bp-timer b { animation: none !important; } }

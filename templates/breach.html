@@ -60,9 +60,9 @@
 (function () {
     'use strict';
     /* ---- настройки партии ---- */
-    const SIZE = 6;                 // матрица SIZE × SIZE
+    const SIZE = 9;                 // матрица SIZE × SIZE
     const BUFFER = 7;               // длина буфера
-    const TIME = 45;                // секунд на партию (идут с момента нажатия «Начать взлом»)
+    const TIME = 60;                // секунд на партию (идут с момента нажатия «Начать взлом»)
     const SYMBOLS = 'ABCDEF1234567890'.split('');
 
     const root = document.getElementById('bp');
@@ -175,7 +175,7 @@
                 b.textContent = idle ? '▒' : matrix[r][c];   // до старта символы не попадают в страницу
                 b.dataset.r = r; b.dataset.c = c;
                 b.setAttribute('role', 'gridcell');
-                b.style.setProperty('--d', (r * SIZE + c) * 14 + 'ms');
+                b.style.setProperty('--d', (r * SIZE + c) * 9 + 'ms');
                 grid.appendChild(b);
             }
         }
